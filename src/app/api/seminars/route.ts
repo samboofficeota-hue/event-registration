@@ -12,9 +12,10 @@ import type { Seminar } from "@/lib/types";
 // マスタースプレッドシート「セミナー一覧」シートの列順:
 // A:id B:title C:description D:date E:duration_minutes F:capacity
 // G:current_bookings H:speaker I:meet_url J:calendar_event_id
-// K:status L:spreadsheet_id M:created_at N:updated_at
+// K:status L:spreadsheet_id M:肩書き N:開催形式 O:対象 P:Googleカレンダー Q:created_at R:updated_at
 
 function rowToSeminar(row: string[]): Seminar {
+  const isNewLayout = row.length >= 18;
   return {
     id: row[0] || "",
     title: row[1] || "",
@@ -28,8 +29,12 @@ function rowToSeminar(row: string[]): Seminar {
     calendar_event_id: row[9] || "",
     status: (row[10] as Seminar["status"]) || "draft",
     spreadsheet_id: row[11] || "",
-    created_at: row[12] || "",
-    updated_at: row[13] || "",
+    speaker_title: isNewLayout ? row[12] || "" : "",
+    format: (isNewLayout ? row[13] : "online") as Seminar["format"],
+    target: (isNewLayout ? row[14] : "public") as Seminar["target"],
+    calendar_link: isNewLayout ? row[15] || "" : "",
+    created_at: isNewLayout ? row[16] || "" : row[12] || "",
+    updated_at: isNewLayout ? row[17] || "" : row[13] || "",
   };
 }
 
@@ -57,17 +62,34 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { title, description, date, duration_minutes, capacity, speaker, status } = body;
+    const {
+      title,
+      description,
+      date,
+      duration_minutes,
+      capacity,
+      speaker,
+      speaker_title,
+      format,
+      target,
+      calendar_link,
+      status,
+    } = body;
 
-    if (!title || !date || !duration_minutes || !capacity) {
-      return NextResponse.json({ error: "必須項目が不足しています" }, { status: 400 });
+    if (!title || !date || !speaker) {
+      return NextResponse.json(
+        { error: "必須項目（タイトル・日時・登壇者）が不足しています" },
+        { status: 400 }
+      );
     }
+    const duration = Number(duration_minutes) || 60;
+    const cap = Number(capacity) || 100;
 
     // 1. Google Calendar イベント作成 + Meet URL 生成
     let meetUrl = "";
     let calendarEventId = "";
     try {
-      const calEvent = await createCalendarEvent(title, date, duration_minutes, description);
+      const calEvent = await createCalendarEvent(title, date, duration, description);
       meetUrl = calEvent.meetUrl;
       calendarEventId = calEvent.eventId;
     } catch (calError) {
@@ -86,6 +108,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const formatVal = ["venue", "online", "hybrid"].includes(format) ? format : "online";
+    const targetVal = ["members_only", "public"].includes(target) ? target : "public";
+
     // 3. セミナー専用スプレッドシートの「イベント情報」シートにも書き込む
     const now = new Date().toISOString();
     const id = uuidv4();
@@ -95,10 +120,14 @@ export async function POST(request: NextRequest) {
         title,
         description || "",
         date,
-        String(duration_minutes),
-        String(capacity),
+        String(duration),
+        String(cap),
         "0",
         speaker || "",
+        speaker_title || "",
+        formatVal,
+        targetVal,
+        calendar_link || "",
         meetUrl,
         calendarEventId,
         status || "draft",
@@ -114,14 +143,18 @@ export async function POST(request: NextRequest) {
       title,
       description || "",
       date,
-      String(duration_minutes),
-      String(capacity),
+      String(duration),
+      String(cap),
       "0",
       speaker || "",
       meetUrl,
       calendarEventId,
       status || "draft",
       spreadsheetId,
+      speaker_title || "",
+      formatVal,
+      targetVal,
+      calendar_link || "",
       now,
       now,
     ];

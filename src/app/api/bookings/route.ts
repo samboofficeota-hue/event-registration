@@ -3,8 +3,9 @@ import { v4 as uuidv4 } from "uuid";
 import { findMasterRowById, appendRow, updateCell } from "@/lib/google/sheets";
 import type { Seminar } from "@/lib/types";
 
-// マスタースプレッドシート列順: A~N (id ~ updated_at)
+// マスタースプレッドシート列順: A~R (新レイアウトは18列)
 function rowToSeminar(row: string[]): Seminar {
+  const isNewLayout = row.length >= 18;
   return {
     id: row[0] || "",
     title: row[1] || "",
@@ -18,8 +19,12 @@ function rowToSeminar(row: string[]): Seminar {
     calendar_event_id: row[9] || "",
     status: (row[10] as Seminar["status"]) || "draft",
     spreadsheet_id: row[11] || "",
-    created_at: row[12] || "",
-    updated_at: row[13] || "",
+    speaker_title: isNewLayout ? row[12] || "" : "",
+    format: (isNewLayout ? row[13] : "online") as Seminar["format"],
+    target: (isNewLayout ? row[14] : "public") as Seminar["target"],
+    calendar_link: isNewLayout ? row[15] || "" : "",
+    created_at: isNewLayout ? row[16] || "" : row[12] || "",
+    updated_at: isNewLayout ? row[17] || "" : row[13] || "",
   };
 }
 

@@ -20,19 +20,28 @@ export default function NewSeminarPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("draft");
+  const [format, setFormat] = useState<"venue" | "online" | "hybrid">("online");
+  const [target, setTarget] = useState<"members_only" | "public">("public");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
 
     const formData = new FormData(e.currentTarget);
+    const dateDate = formData.get("date_date") as string;
+    const dateTime = formData.get("date_time") as string;
+    const date = dateDate && dateTime ? `${dateDate}T${dateTime}:00` : "";
     const data = {
       title: formData.get("title"),
       description: formData.get("description"),
-      date: formData.get("date"),
-      duration_minutes: Number(formData.get("duration_minutes")),
-      capacity: Number(formData.get("capacity")),
+      date,
+      duration_minutes: Number(formData.get("duration_minutes")) || 60,
+      capacity: Number(formData.get("capacity")) || 100,
       speaker: formData.get("speaker"),
+      speaker_title: formData.get("speaker_title") || "",
+      format,
+      target,
+      calendar_link: formData.get("calendar_link") || "",
       status,
     };
 
@@ -79,44 +88,94 @@ export default function NewSeminarPage() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="date">開催日時 *</Label>
+                <Label htmlFor="date_date">開催日 *</Label>
                 <Input
-                  id="date"
-                  name="date"
-                  type="datetime-local"
+                  id="date_date"
+                  name="date_date"
+                  type="date"
                   required
                 />
               </div>
-
               <div className="space-y-2">
-                <Label htmlFor="duration_minutes">所要時間（分） *</Label>
+                <Label htmlFor="date_time">開催時刻 *</Label>
+                <Input
+                  id="date_time"
+                  name="date_time"
+                  type="time"
+                  required
+                />
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="duration_minutes">所要時間（分）</Label>
                 <Input
                   id="duration_minutes"
                   name="duration_minutes"
                   type="number"
                   min="15"
                   defaultValue="60"
-                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="capacity">定員</Label>
+                <Input
+                  id="capacity"
+                  name="capacity"
+                  type="number"
+                  min="1"
+                  defaultValue="100"
                 />
               </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="capacity">定員 *</Label>
-                <Input
-                  id="capacity"
-                  name="capacity"
-                  type="number"
-                  min="1"
-                  required
-                />
+                <Label htmlFor="speaker">登壇者 *</Label>
+                <Input id="speaker" name="speaker" required />
               </div>
-
               <div className="space-y-2">
-                <Label htmlFor="speaker">登壇者</Label>
-                <Input id="speaker" name="speaker" />
+                <Label htmlFor="speaker_title">肩書き</Label>
+                <Input id="speaker_title" name="speaker_title" placeholder="例：株式会社〇〇 代表取締役" />
               </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="format">開催形式</Label>
+                <Select value={format} onValueChange={(v) => setFormat(v as "venue" | "online" | "hybrid")}>
+                  <SelectTrigger id="format">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="venue">会場</SelectItem>
+                    <SelectItem value="online">オンライン</SelectItem>
+                    <SelectItem value="hybrid">ハイブリッド</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="target">対象</Label>
+                <Select value={target} onValueChange={(v) => setTarget(v as "members_only" | "public")}>
+                  <SelectTrigger id="target">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="members_only">会員限定</SelectItem>
+                    <SelectItem value="public">一般公開</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="calendar_link">Google カレンダー</Label>
+              <Input
+                id="calendar_link"
+                name="calendar_link"
+                type="url"
+                placeholder="https://calendar.google.com/..."
+              />
             </div>
 
             <div className="space-y-2">

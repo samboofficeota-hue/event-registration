@@ -48,8 +48,20 @@ export function SeminarCard({ seminar }: SeminarCardProps) {
             <span className="font-medium">時間:</span> {seminar.duration_minutes}分
           </p>
           <p>
-            <span className="font-medium">登壇者:</span> {seminar.speaker}
+            <span className="font-medium">登壇者:</span>{" "}
+            {seminar.speaker}
+            {seminar.speaker_title ? `（${seminar.speaker_title}）` : ""}
           </p>
+          <div className="flex flex-wrap gap-1.5">
+            {seminar.format && seminar.format !== "online" && (
+              <Badge variant="outline">
+                {seminar.format === "venue" ? "会場" : seminar.format === "hybrid" ? "ハイブリッド" : "オンライン"}
+              </Badge>
+            )}
+            {seminar.target === "members_only" && (
+              <Badge variant="secondary">会員限定</Badge>
+            )}
+          </div>
           <p>
             <span className="font-medium">残席:</span>{" "}
             {isFull ? "なし" : `${remaining}/${seminar.capacity}`}

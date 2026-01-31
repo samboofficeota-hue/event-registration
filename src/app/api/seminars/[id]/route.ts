@@ -3,9 +3,10 @@ import { findMasterRowById, updateMasterRow } from "@/lib/google/sheets";
 import { updateCalendarEvent, deleteCalendarEvent } from "@/lib/google/calendar";
 import type { Seminar } from "@/lib/types";
 
-// マスタースプレッドシート列順: A~N (id ~ updated_at)
+// マスタースプレッドシート列順: A~R (id ~ updated_at、M:肩書き N:開催形式 O:対象 P:Googleカレンダー)
 
 function rowToSeminar(row: string[]): Seminar {
+  const isNewLayout = row.length >= 18;
   return {
     id: row[0] || "",
     title: row[1] || "",
@@ -19,8 +20,12 @@ function rowToSeminar(row: string[]): Seminar {
     calendar_event_id: row[9] || "",
     status: (row[10] as Seminar["status"]) || "draft",
     spreadsheet_id: row[11] || "",
-    created_at: row[12] || "",
-    updated_at: row[13] || "",
+    speaker_title: isNewLayout ? row[12] || "" : "",
+    format: (isNewLayout ? row[13] : "online") as Seminar["format"],
+    target: (isNewLayout ? row[14] : "public") as Seminar["target"],
+    calendar_link: isNewLayout ? row[15] || "" : "",
+    created_at: isNewLayout ? row[16] || "" : row[12] || "",
+    updated_at: isNewLayout ? row[17] || "" : row[13] || "",
   };
 }
 
@@ -72,6 +77,10 @@ export async function PUT(
       current.calendar_event_id,
       body.status ?? current.status,
       current.spreadsheet_id,
+      body.speaker_title ?? current.speaker_title,
+      body.format ?? current.format,
+      body.target ?? current.target,
+      body.calendar_link ?? current.calendar_link,
       current.created_at,
       now,
     ];
@@ -117,9 +126,9 @@ export async function DELETE(
 
     // 論理削除: status を cancelled に変更
     const updated = [...result.values];
-    while (updated.length < 14) updated.push("");
+    while (updated.length < 18) updated.push("");
     updated[10] = "cancelled";
-    updated[13] = now;
+    updated[17] = now;
 
     await updateMasterRow(result.rowIndex, updated);
 

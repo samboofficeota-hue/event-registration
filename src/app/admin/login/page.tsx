@@ -30,7 +30,8 @@ export default function AdminLoginPage() {
       }
 
       toast.success("ログインしました");
-      router.push("/admin");
+      // ダッシュボードへ遷移（replace で履歴にログイン画面を残さない）
+      router.replace("/admin");
       router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "ログインに失敗しました");

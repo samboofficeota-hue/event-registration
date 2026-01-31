@@ -1,6 +1,11 @@
 // ---------------------------------------------------------------------------
 // マスタースプレッドシート: 「セミナー一覧」シート
 // ---------------------------------------------------------------------------
+/** 開催形式 */
+export type SeminarFormat = "venue" | "online" | "hybrid";
+/** 対象 */
+export type SeminarTarget = "members_only" | "public";
+
 export interface Seminar {
   id: string;
   title: string;
@@ -10,6 +15,14 @@ export interface Seminar {
   capacity: number;
   current_bookings: number;
   speaker: string;
+  /** 肩書き */
+  speaker_title: string;
+  /** 開催形式: 会場 / オンライン / ハイブリッド */
+  format: SeminarFormat;
+  /** 対象: 会員限定 / 一般公開 */
+  target: SeminarTarget;
+  /** Google カレンダー用リンク（追加用URL等） */
+  calendar_link: string;
   meet_url: string;
   calendar_event_id: string;
   status: "draft" | "published" | "cancelled" | "completed";
