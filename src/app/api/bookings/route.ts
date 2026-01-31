@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { findMasterRowById, appendRow, updateCell } from "@/lib/google/sheets";
 import type { Seminar } from "@/lib/types";
 
-// マスタースプレッドシート列順: A~R (新レイアウトは18列)
+// マスタースプレッドシート列順: A~R (新レイアウトは18列、P:画像URL)
 function rowToSeminar(row: string[]): Seminar {
   const isNewLayout = row.length >= 18;
   return {
@@ -22,7 +22,7 @@ function rowToSeminar(row: string[]): Seminar {
     speaker_title: isNewLayout ? row[12] || "" : "",
     format: (isNewLayout ? row[13] : "online") as Seminar["format"],
     target: (isNewLayout ? row[14] : "public") as Seminar["target"],
-    calendar_link: isNewLayout ? row[15] || "" : "",
+    image_url: isNewLayout ? row[15] || "" : "",
     created_at: isNewLayout ? row[16] || "" : row[12] || "",
     updated_at: isNewLayout ? row[17] || "" : row[13] || "",
   };

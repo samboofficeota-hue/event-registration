@@ -98,19 +98,6 @@ export default async function SeminarDetailPage({
                 <span>{seminar.target === "members_only" ? "会員限定" : "一般公開"}</span>
               </div>
             )}
-            {seminar.calendar_link && (
-              <div className="flex justify-between items-center">
-                <span className="font-medium">Google カレンダー</span>
-                <a
-                  href={seminar.calendar_link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline text-sm break-all"
-                >
-                  カレンダーに追加
-                </a>
-              </div>
-            )}
             <div className="flex justify-between">
               <span className="font-medium">定員</span>
               <span>{seminar.capacity}名</span>

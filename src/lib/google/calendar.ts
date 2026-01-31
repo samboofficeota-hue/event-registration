@@ -12,6 +12,28 @@ export interface CalendarEventResult {
   meetUrl: string;
 }
 
+/**
+ * 入力された日時文字列（"2025-02-15T14:30:00" など）を
+ * 日本時間オフセット付きの RFC 3339 文字列に変換する。
+ * Google Calendar API に "Asia/Tokyo" タイムゾーンと組み合わせ、
+ * 正確に日本時間としてイベントを設定する。
+ */
+function toJSTDateTime(localDateTime: string): string {
+  // 入力: "YYYY-MM-DDTHH:MM:00" （日本時間として扱う）
+  // 出力: "YYYY-MM-DDTHH:MM:00+09:00"
+  const base = localDateTime.replace(/\..*$/, "").replace(/\+.*$/, "").replace(/Z$/, "");
+  return `${base}+09:00`;
+}
+
+function addMinutes(dtString: string, minutes: number): string {
+  // "+09:00" オフセット付き文字列から分を加算して同じオフセットで返す
+  const base = dtString.replace(/[+-]\d{2}:\d{2}$/, "");
+  const d = new Date(base + "Z"); // UTC として一時的にパース
+  d.setUTCMinutes(d.getUTCMinutes() + minutes);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:00+09:00`;
+}
+
 export async function createCalendarEvent(
   title: string,
   startDateTime: string,
@@ -21,8 +43,8 @@ export async function createCalendarEvent(
   const token = await getAccessToken();
   const calendarId = getCalendarId();
 
-  const start = new Date(startDateTime);
-  const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
+  const startJST = toJSTDateTime(startDateTime);
+  const endJST = addMinutes(startJST, durationMinutes);
 
   const response = await fetch(
     `${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events?conferenceDataVersion=1`,
@@ -36,11 +58,11 @@ export async function createCalendarEvent(
         summary: title,
         description: description || "",
         start: {
-          dateTime: start.toISOString(),
+          dateTime: startJST,
           timeZone: "Asia/Tokyo",
         },
         end: {
-          dateTime: end.toISOString(),
+          dateTime: endJST,
           timeZone: "Asia/Tokyo",
         },
         conferenceData: {
@@ -80,8 +102,8 @@ export async function updateCalendarEvent(
   const token = await getAccessToken();
   const calendarId = getCalendarId();
 
-  const start = new Date(startDateTime);
-  const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
+  const startJST = toJSTDateTime(startDateTime);
+  const endJST = addMinutes(startJST, durationMinutes);
 
   const response = await fetch(
     `${CALENDAR_API}/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`,
@@ -95,11 +117,11 @@ export async function updateCalendarEvent(
         summary: title,
         description: description || "",
         start: {
-          dateTime: start.toISOString(),
+          dateTime: startJST,
           timeZone: "Asia/Tokyo",
         },
         end: {
-          dateTime: end.toISOString(),
+          dateTime: endJST,
           timeZone: "Asia/Tokyo",
         },
       }),

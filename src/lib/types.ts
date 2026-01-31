@@ -21,8 +21,8 @@ export interface Seminar {
   format: SeminarFormat;
   /** 対象: 会員限定 / 一般公開 */
   target: SeminarTarget;
-  /** Google カレンダー用リンク（追加用URL等） */
-  calendar_link: string;
+  /** セミナー画像のGoogle Drive URL */
+  image_url: string;
   meet_url: string;
   calendar_event_id: string;
   status: "draft" | "published" | "cancelled" | "completed";

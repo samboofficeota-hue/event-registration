@@ -63,7 +63,6 @@ export default function EditSeminarPage({
       speaker_title: formData.get("speaker_title") || "",
       format,
       target,
-      calendar_link: formData.get("calendar_link") || "",
       status,
     };
 
@@ -221,30 +220,33 @@ export default function EditSeminarPage({
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="calendar_link">Google カレンダー</Label>
-              <Input
-                id="calendar_link"
-                name="calendar_link"
-                type="url"
-                defaultValue={seminar.calendar_link}
-                placeholder="https://calendar.google.com/..."
-              />
-            </div>
-
-            {seminar.meet_url && (
-              <div className="rounded bg-gray-50 p-3">
-                <p className="text-xs font-medium text-muted-foreground mb-1">
-                  Google Meet URL
-                </p>
-                <a
-                  href={seminar.meet_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-blue-600 hover:underline break-all"
-                >
-                  {seminar.meet_url}
-                </a>
+            {(seminar.meet_url || seminar.calendar_event_id) && (
+              <div className="rounded bg-gray-50 p-3 space-y-3">
+                {seminar.calendar_event_id && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">
+                      Calendar Event ID
+                    </p>
+                    <p className="text-sm font-mono text-gray-700 break-all">
+                      {seminar.calendar_event_id}
+                    </p>
+                  </div>
+                )}
+                {seminar.meet_url && (
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-1">
+                      Google Meet URL
+                    </p>
+                    <a
+                      href={seminar.meet_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-blue-600 hover:underline break-all"
+                    >
+                      {seminar.meet_url}
+                    </a>
+                  </div>
+                )}
               </div>
             )}
 
@@ -263,9 +265,16 @@ export default function EditSeminarPage({
               </Select>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Button type="submit" disabled={loading}>
                 {loading ? "更新中..." : "更新する"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push(`/admin/seminars/${id}/image`)}
+              >
+                画像登録
               </Button>
               <Button
                 type="button"

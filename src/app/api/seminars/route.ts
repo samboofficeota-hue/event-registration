@@ -12,7 +12,7 @@ import type { Seminar } from "@/lib/types";
 // マスタースプレッドシート「セミナー一覧」シートの列順:
 // A:id B:title C:description D:date E:duration_minutes F:capacity
 // G:current_bookings H:speaker I:meet_url J:calendar_event_id
-// K:status L:spreadsheet_id M:肩書き N:開催形式 O:対象 P:Googleカレンダー Q:created_at R:updated_at
+// K:status L:spreadsheet_id M:肩書き N:開催形式 O:対象 P:画像URL Q:created_at R:updated_at
 
 function rowToSeminar(row: string[]): Seminar {
   const isNewLayout = row.length >= 18;
@@ -32,7 +32,7 @@ function rowToSeminar(row: string[]): Seminar {
     speaker_title: isNewLayout ? row[12] || "" : "",
     format: (isNewLayout ? row[13] : "online") as Seminar["format"],
     target: (isNewLayout ? row[14] : "public") as Seminar["target"],
-    calendar_link: isNewLayout ? row[15] || "" : "",
+    image_url: isNewLayout ? row[15] || "" : "",
     created_at: isNewLayout ? row[16] || "" : row[12] || "",
     updated_at: isNewLayout ? row[17] || "" : row[13] || "",
   };
@@ -72,7 +72,6 @@ export async function POST(request: NextRequest) {
       speaker_title,
       format,
       target,
-      calendar_link,
       status,
     } = body;
 
@@ -127,7 +126,6 @@ export async function POST(request: NextRequest) {
         speaker_title || "",
         formatVal,
         targetVal,
-        calendar_link || "",
         meetUrl,
         calendarEventId,
         status || "draft",
@@ -154,7 +152,7 @@ export async function POST(request: NextRequest) {
       speaker_title || "",
       formatVal,
       targetVal,
-      calendar_link || "",
+      "",        // image_url（画像登録時に更新）
       now,
       now,
     ];

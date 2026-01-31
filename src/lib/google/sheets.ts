@@ -213,10 +213,10 @@ export async function createSeminarSpreadsheet(
         valueInputOption: "USER_ENTERED",
         data: [
           {
-            range: "イベント情報!A1:P1",
+            range: "イベント情報!A1:O1",
             values: [[
               "ID", "タイトル", "説明", "開催日時", "所要時間(分)",
-              "定員", "現在の予約数", "登壇者", "肩書き", "開催形式", "対象", "Googleカレンダー",
+              "定員", "現在の予約数", "登壇者", "肩書き", "開催形式", "対象",
               "Meet URL", "Calendar Event ID", "ステータス", "作成日時",
             ]],
           },
@@ -280,4 +280,94 @@ export async function createSeminarSpreadsheet(
   }
 
   return spreadsheetId;
+}
+
+// ---------------------------------------------------------------------------
+// Google Drive: セミナー画像アップロード
+// ---------------------------------------------------------------------------
+
+/**
+ * ファイルを Google Drive にアップロードし、公開URLを返す。
+ * GOOGLE_DRIVE_FOLDER_ID が設定されている場合はそのフォルダに配置する。
+ */
+export async function uploadImageToDrive(
+  fileName: string,
+  fileBuffer: ArrayBuffer,
+  mimeType: string
+): Promise<string> {
+  const token = await getAccessToken();
+  const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+
+  // multipart/related でメタデータとファイル本体を同時に送信
+  const boundary = `boundary_${Date.now()}`;
+  const metadata = JSON.stringify({
+    name: fileName,
+    mimeType,
+    ...(folderId ? { parents: [folderId] } : {}),
+  });
+
+  const metadataPart = [
+    `--${boundary}`,
+    `Content-Type: application/json; charset=UTF-8`,
+    ``,
+    metadata,
+  ].join("\r\n");
+
+  const filePart = [
+    `--${boundary}`,
+    `Content-Type: ${mimeType}`,
+    ``,
+  ].join("\r\n");
+
+  const ending = `\r\n--${boundary}--`;
+
+  // バイト列を結合して送信本体を構築
+  const encoder = new TextEncoder();
+  const metaBytes = encoder.encode(metadataPart + "\r\n");
+  const filePartBytes = encoder.encode(filePart + "\r\n");
+  const fileBytes = new Uint8Array(fileBuffer);
+  const endBytes = encoder.encode(ending);
+
+  const totalLength = metaBytes.length + filePartBytes.length + fileBytes.length + endBytes.length;
+  const body = new Uint8Array(totalLength);
+  let offset = 0;
+  body.set(metaBytes, offset); offset += metaBytes.length;
+  body.set(filePartBytes, offset); offset += filePartBytes.length;
+  body.set(fileBytes, offset); offset += fileBytes.length;
+  body.set(endBytes, offset);
+
+  const response = await fetch(
+    `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": `multipart/related; boundary=${boundary}`,
+      },
+      body,
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Failed to upload image: ${error}`);
+  }
+
+  const data = await response.json();
+  const fileId: string = data.id;
+
+  // ファイルを公開して閲覧URLを返す
+  await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}/permissions`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ role: "reader", type: "anyone" }),
+    }
+  );
+
+  return `https://drive.google.com/file/d/${fileId}/view`;
 }

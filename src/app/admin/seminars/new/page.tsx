@@ -41,7 +41,6 @@ export default function NewSeminarPage() {
       speaker_title: formData.get("speaker_title") || "",
       format,
       target,
-      calendar_link: formData.get("calendar_link") || "",
       status,
     };
 
@@ -166,16 +165,6 @@ export default function NewSeminarPage() {
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="calendar_link">Google カレンダー</Label>
-              <Input
-                id="calendar_link"
-                name="calendar_link"
-                type="url"
-                placeholder="https://calendar.google.com/..."
-              />
             </div>
 
             <div className="space-y-2">
