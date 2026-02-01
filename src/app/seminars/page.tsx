@@ -1,6 +1,8 @@
 import { SeminarListClient } from "@/components/seminar-list-client";
 import { getPublishedSeminars } from "@/lib/seminars";
 
+export const dynamic = "force-dynamic";
+
 export default async function SeminarsPage() {
   const seminars = await getPublishedSeminars();
 

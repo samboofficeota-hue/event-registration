@@ -42,9 +42,13 @@ export function rowToSeminar(row: string[]): Seminar {
  * Server Component から直接呼べる（APIルートへのself-fetchを経由しない）。
  */
 export async function getSeminarById(id: string): Promise<Seminar | null> {
-  const result = await findMasterRowById(id);
-  if (!result) return null;
-  return rowToSeminar(result.values);
+  try {
+    const result = await findMasterRowById(id);
+    if (!result) return null;
+    return rowToSeminar(result.values);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -52,15 +56,19 @@ export async function getSeminarById(id: string): Promise<Seminar | null> {
  * Server Component から直接呼べる（APIルートへのself-fetchを経由しない）。
  */
 export async function getPublishedSeminars(): Promise<Seminar[]> {
-  const rows = await getMasterData();
-  const seminars = rows
-    .slice(1)
-    .filter((row) => row[0]?.trim())
-    .map(rowToSeminar)
-    .filter((s) => s.status === "published");
+  try {
+    const rows = await getMasterData();
+    const seminars = rows
+      .slice(1)
+      .filter((row) => row[0]?.trim())
+      .map(rowToSeminar)
+      .filter((s) => s.status === "published");
 
-  seminars.sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
-  return seminars;
+    seminars.sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+    return seminars;
+  } catch {
+    return [];
+  }
 }
