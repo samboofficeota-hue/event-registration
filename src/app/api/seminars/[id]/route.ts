@@ -1,36 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { findMasterRowById, updateMasterRow } from "@/lib/google/sheets";
 import { updateCalendarEvent, deleteCalendarEvent } from "@/lib/google/calendar";
-import type { Seminar } from "@/lib/types";
-
-// マスタースプレッドシート列順: A~R (id ~ updated_at、M:肩書き N:開催形式 O:対象 P:画像URL)
-
-function rowToSeminar(row: string[]): Seminar {
-  // Google Sheets APIは末尾の空セルを省略するため、row.length >= 18 で判定するのは不正確。
-  // M列(インデックス12)が肩書き・N列(13)が開催形式の値になっているか確認する。
-  const formatVal = row[13];
-  const isNewLayout = formatVal === "venue" || formatVal === "online" || formatVal === "hybrid";
-  return {
-    id: row[0] || "",
-    title: row[1] || "",
-    description: row[2] || "",
-    date: row[3] || "",
-    duration_minutes: parseInt(row[4] || "0", 10),
-    capacity: parseInt(row[5] || "0", 10),
-    current_bookings: parseInt(row[6] || "0", 10),
-    speaker: row[7] || "",
-    meet_url: row[8] || "",
-    calendar_event_id: row[9] || "",
-    status: (row[10] as Seminar["status"]) || "draft",
-    spreadsheet_id: row[11] || "",
-    speaker_title: isNewLayout ? row[12] || "" : "",
-    format: (isNewLayout ? row[13] : "online") as Seminar["format"],
-    target: (isNewLayout ? row[14] : "public") as Seminar["target"],
-    image_url: isNewLayout ? row[15] || "" : "",
-    created_at: isNewLayout ? row[16] || "" : row[12] || "",
-    updated_at: isNewLayout ? row[17] || "" : row[13] || "",
-  };
-}
+import { rowToSeminar } from "@/lib/seminars";
 
 export async function GET(
   _request: NextRequest,
