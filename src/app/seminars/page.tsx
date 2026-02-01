@@ -1,21 +1,8 @@
 import { SeminarListClient } from "@/components/seminar-list-client";
-import type { Seminar } from "@/lib/types";
-
-async function getSeminars(): Promise<Seminar[]> {
-  try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const res = await fetch(`${baseUrl}/api/seminars?status=published`, {
-      cache: "no-store",
-    });
-    if (!res.ok) return [];
-    return res.json();
-  } catch {
-    return [];
-  }
-}
+import { getPublishedSeminars } from "@/lib/seminars";
 
 export default async function SeminarsPage() {
-  const seminars = await getSeminars();
+  const seminars = await getPublishedSeminars();
 
   return (
     <div>

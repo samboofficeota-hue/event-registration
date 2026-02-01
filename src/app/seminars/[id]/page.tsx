@@ -3,20 +3,7 @@ import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import type { Seminar } from "@/lib/types";
-
-async function getSeminar(id: string): Promise<Seminar | null> {
-  try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    const res = await fetch(`${baseUrl}/api/seminars/${id}`, {
-      cache: "no-store",
-    });
-    if (!res.ok) return null;
-    return res.json();
-  } catch {
-    return null;
-  }
-}
+import { getSeminarById } from "@/lib/seminars";
 
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
@@ -36,7 +23,7 @@ export default async function SeminarDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const seminar = await getSeminar(id);
+  const seminar = await getSeminarById(id);
 
   if (!seminar) {
     notFound();
