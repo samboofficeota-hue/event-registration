@@ -51,12 +51,12 @@ export function HeroSection() {
             transition={{ delay: 0.2 }}
           >
             <Sparkles className="w-4 h-4" />
-            <span className="text-sm font-medium">2026年 最新セミナー情報</span>
+            <span className="text-sm font-medium">アライアンス・フォーラム財団</span>
           </motion.div>
 
           {/* 見出し */}
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight">
-            あなたの
+            公益資本主義で
             <span
               className="block bg-clip-text text-transparent"
               style={{
@@ -64,9 +64,9 @@ export function HeroSection() {
                   "linear-gradient(to right, hsl(199, 89%, 68%), white, hsl(36, 100%, 60%))",
               }}
             >
-              キャリアを加速する
+              健康で豊かな人と社会をつくりだすために
             </span>
-            セミナー
+            　近日開催のイベント一覧
           </h1>
 
           {/* サブタイトル */}
