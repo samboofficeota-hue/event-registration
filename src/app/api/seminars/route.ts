@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     const statusFilter = searchParams.get("status");
 
     const rows = await getMasterData();
-    let seminars = rows.slice(1).map(rowToSeminar);
+    let seminars = rows.slice(1).filter((row) => row[0]?.trim()).map(rowToSeminar);
 
     if (statusFilter) {
       seminars = seminars.filter((s) => s.status === statusFilter);

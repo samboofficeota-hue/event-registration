@@ -120,7 +120,7 @@ export default function AdminSeminarsPage() {
                       </Button>
                     </a>
                   )}
-                  {s.status !== "cancelled" && (
+                  {s.id && s.status !== "cancelled" && (
                     <Button
                       variant="destructive"
                       size="sm"
