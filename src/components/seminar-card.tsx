@@ -29,21 +29,23 @@ export function SeminarCard({ seminar }: SeminarCardProps) {
 
   return (
     <Card className="flex flex-col overflow-hidden">
-      {seminar.image_url && (
-        <div className="h-40 overflow-hidden bg-gray-100">
-          <img
-            src={seminar.image_url.replace(
-              /\/file\/d\/([^/]+)\/view/,
-              "/file/d/$1/export?format=png"
-            )}
-            alt={seminar.title}
-            className="h-full w-full object-cover"
-            onError={(e) => {
-              (e.target as HTMLImageElement).parentElement!.style.display = "none";
-            }}
-          />
-        </div>
-      )}
+      <div className="h-40 overflow-hidden bg-gray-100">
+        <img
+          src={
+            seminar.image_url
+              ? seminar.image_url.replace(
+                  /\/file\/d\/([^/]+)\/view/,
+                  "/file/d/$1/export?format=png"
+                )
+              : "/9553.png"
+          }
+          alt={seminar.title}
+          className="h-full w-full object-cover"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src = "/9553.png";
+          }}
+        />
+      </div>
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-lg">{seminar.title}</CardTitle>
