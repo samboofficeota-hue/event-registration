@@ -1,6 +1,6 @@
 name = "event-registration"
 compatibility_date = "2025-05-05"
-compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+compatibility_flags = ["nodejs_compat"]
 main = ".open-next/worker.js"
 
 [assets]
