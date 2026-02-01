@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { motion } from "framer-motion";
 import {
   Calendar,
   Clock,
@@ -13,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AnimatedSection } from "@/components/animated-section";
 import { getSeminarById } from "@/lib/seminars";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -65,10 +65,48 @@ export default async function SeminarDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const seminar = await getSeminarById(id);
 
+  // ----- デバッグ用: 環境変数の存在確認 -----
+  const debugEnv = {
+    hasEmail: !!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    hasKey: !!process.env.GOOGLE_PRIVATE_KEY,
+    hasKeyId: !!process.env.GOOGLE_PRIVATE_KEY_ID,
+    hasSheetId: !!process.env.GOOGLE_SPREADSHEET_ID,
+  };
+
+  let seminar = null;
+  let debugError: string | null = null;
+  try {
+    seminar = await getSeminarById(id);
+  } catch (e) {
+    debugError = e instanceof Error ? e.message : String(e);
+  }
+
+  // デバッグ情報を一時的にレスポンスで返す
   if (!seminar) {
-    notFound();
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-8">
+        <div className="max-w-xl w-full bg-card rounded-xl shadow-xl p-8 font-mono text-sm">
+          <h1 className="text-xl font-bold text-destructive mb-4">DEBUG: セミナー取得失敗</h1>
+          <p className="text-muted-foreground mb-2">ID: {id}</p>
+          <div className="bg-muted rounded-lg p-4 mb-4 whitespace-pre-wrap">
+            <p className="font-bold text-foreground mb-2">環境変数の存在:</p>
+            {JSON.stringify(debugEnv, null, 2)}
+          </div>
+          {debugError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 whitespace-pre-wrap">
+              <p className="font-bold text-red-700 mb-1">エラー:</p>
+              <p className="text-red-600">{debugError}</p>
+            </div>
+          )}
+          {!debugError && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <p className="text-yellow-700">エラーなし・データも返されていない（IDが見つからないか、データが空の可能性あり）</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
   }
 
   const isFull = seminar.current_bookings >= seminar.capacity;
@@ -117,13 +155,12 @@ export default async function SeminarDetailPage({
               {formatLabel(seminar.format)}
             </Badge>
             {/* タイトル */}
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
+            <AnimatedSection
+              as="h1"
               className="text-3xl md:text-5xl font-bold text-foreground mb-4"
             >
               {seminar.title}
-            </motion.h1>
+            </AnimatedSection>
             {/* 対象バッジ */}
             <div className="flex flex-wrap gap-2">
               {seminar.target === "members_only" && (
@@ -145,11 +182,7 @@ export default async function SeminarDetailPage({
           {/* 左カラム: 概要・特徴・講師 */}
           <div className="lg:col-span-2 space-y-8">
             {/* セミナー概要 */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-            >
+            <AnimatedSection transition={{ delay: 0.1 }}>
               <Card className="border-0 shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -163,14 +196,10 @@ export default async function SeminarDetailPage({
                   </p>
                 </CardContent>
               </Card>
-            </motion.div>
+            </AnimatedSection>
 
             {/* このセミナーの特徴 */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-            >
+            <AnimatedSection transition={{ delay: 0.2 }}>
               <Card className="border-0 shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -181,8 +210,9 @@ export default async function SeminarDetailPage({
                 <CardContent>
                   <ul className="space-y-3">
                     {highlights.map((highlight, index) => (
-                      <motion.li
+                      <AnimatedSection
                         key={index}
+                        as="li"
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.3 + index * 0.1 }}
@@ -190,19 +220,15 @@ export default async function SeminarDetailPage({
                       >
                         <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0" />
                         <span className="text-foreground">{highlight}</span>
-                      </motion.li>
+                      </AnimatedSection>
                     ))}
                   </ul>
                 </CardContent>
               </Card>
-            </motion.div>
+            </AnimatedSection>
 
             {/* 講師紹介 */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-            >
+            <AnimatedSection transition={{ delay: 0.3 }}>
               <Card className="border-0 shadow-xl overflow-hidden">
                 {/* グラデーション上バー */}
                 <div
@@ -237,16 +263,12 @@ export default async function SeminarDetailPage({
                   </div>
                 </CardContent>
               </Card>
-            </motion.div>
+            </AnimatedSection>
 
             {/* Meet リンク（オンライン・ハイブリッド） */}
             {seminar.meet_url &&
               (seminar.format === "online" || seminar.format === "hybrid") && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.35 }}
-                >
+                <AnimatedSection transition={{ delay: 0.35 }}>
                   <Card className="border border-blue-200 shadow-xl bg-blue-50">
                     <CardContent className="p-6">
                       <p className="mb-2 text-sm font-semibold text-blue-800">
@@ -267,17 +289,13 @@ export default async function SeminarDetailPage({
                       </a>
                     </CardContent>
                   </Card>
-                </motion.div>
+                </AnimatedSection>
               )}
           </div>
 
           {/* 右サイドバー: 予約情報 */}
           <div className="space-y-6">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-            >
+            <AnimatedSection transition={{ delay: 0.2 }}>
               <Card className="border-0 shadow-xl sticky top-6">
                 {/* グラデーション上バー */}
                 <div
@@ -296,7 +314,7 @@ export default async function SeminarDetailPage({
                         {seminar.current_bookings}/{seminar.capacity}人
                       </span>
                     </div>
-                    {/* プログレスバー（自作） */}
+                    {/* プログレスバー */}
                     <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all duration-500"
@@ -343,7 +361,7 @@ export default async function SeminarDetailPage({
                       </div>
                     </div>
 
-                    {/* 開催形式・場所 */}
+                    {/* 開催形式 */}
                     <div className="flex items-center gap-3 p-3 bg-muted rounded-xl">
                       <MapPin className="w-5 h-5 text-cyan-500 flex-shrink-0" />
                       <div>
@@ -398,7 +416,7 @@ export default async function SeminarDetailPage({
                   </p>
                 </CardContent>
               </Card>
-            </motion.div>
+            </AnimatedSection>
           </div>
         </div>
       </div>

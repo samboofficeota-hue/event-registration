@@ -69,9 +69,24 @@ export async function getAccessToken(): Promise<string> {
     return cachedToken.token;
   }
 
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL!;
-  const privateKey = process.env.GOOGLE_PRIVATE_KEY!.replace(/\\n/g, "\n");
-  const keyId = process.env.GOOGLE_PRIVATE_KEY_ID!;
+  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const privateKey = process.env.GOOGLE_PRIVATE_KEY;
+  const keyId = process.env.GOOGLE_PRIVATE_KEY_ID;
+
+  if (!email || !privateKey || !keyId) {
+    throw new Error(
+      "[auth] 環境変数が未設定です: " +
+      [
+        !email && "GOOGLE_SERVICE_ACCOUNT_EMAIL",
+        !privateKey && "GOOGLE_PRIVATE_KEY",
+        !keyId && "GOOGLE_PRIVATE_KEY_ID",
+      ]
+        .filter(Boolean)
+        .join(", ")
+    );
+  }
+
+  const resolvedPrivateKey = privateKey.replace(/\\n/g, "\n");
 
   const scopes = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -93,7 +108,7 @@ export async function getAccessToken(): Promise<string> {
     payload.sub = impersonateEmail;
   }
 
-  const jwt = await signJWT(payload, privateKey, keyId);
+  const jwt = await signJWT(payload, resolvedPrivateKey, keyId);
 
   const response = await fetch(TOKEN_URL, {
     method: "POST",

@@ -46,7 +46,8 @@ export async function getSeminarById(id: string): Promise<Seminar | null> {
     const result = await findMasterRowById(id);
     if (!result) return null;
     return rowToSeminar(result.values);
-  } catch {
+  } catch (err) {
+    console.error("[getSeminarById] failed for id:", id, err);
     return null;
   }
 }
