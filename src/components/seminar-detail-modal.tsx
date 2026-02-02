@@ -27,10 +27,20 @@ interface SeminarDetailModalProps {
 /** Google Drive ファイルURLを直接画像URLに変換 */
 function resolveImageUrl(url: string | undefined): string {
   if (!url) return "/9553.png";
-  return url.replace(
-    /\/file\/d\/([^/]+)\/view/,
-    "https://drive.google.com/uc?export=download&id=$1"
-  );
+
+  // 既に uc?export=download 形式なら そのまま返す
+  if (url.includes("uc?export=download")) {
+    return url;
+  }
+
+  // /file/d/{id}/view 形式から変換
+  const match = url.match(/\/file\/d\/([^/]+)/);
+  if (match) {
+    return `https://drive.google.com/uc?export=download&id=${match[1]}`;
+  }
+
+  // マッチしない場合は汎用画像
+  return "/9553.png";
 }
 
 /** duration_minutes を「○時間○分」に変換 */
