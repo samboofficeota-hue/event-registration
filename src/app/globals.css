@@ -158,6 +158,29 @@
   --sidebar-ring: 262 83% 65%;
 }
 
+/* モーダル等で強制ライトモードにするためのクラス */
+.force-light {
+  --background: 240 20% 98%;
+  --foreground: 240 10% 10%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 10%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 10%;
+  --primary: 262 83% 58%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 199 89% 48%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 240 10% 94%;
+  --muted-foreground: 240 5% 46%;
+  --accent: 330 81% 60%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 240 10% 90%;
+  --input: 240 10% 90%;
+  --ring: 262 83% 58%;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
