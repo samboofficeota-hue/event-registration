@@ -114,7 +114,7 @@ export function SeminarDetailModal({ seminar, onClose }: SeminarDetailModalProps
         transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
         className="fixed inset-0 z-[101] flex justify-center overflow-y-auto"
       >
-        <div className="w-full lg:w-[70%] min-h-full bg-background relative">
+        <div className="force-light w-full lg:w-[70%] min-h-full bg-background text-foreground relative">
           {/* 閉じるボタン */}
           <button
             onClick={handleClose}
