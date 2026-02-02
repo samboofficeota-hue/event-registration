@@ -82,25 +82,31 @@ export async function POST(request: NextRequest) {
     const targetVal = ["members_only", "public"].includes(target) ? target : "public";
 
     // 3. セミナー専用スプレッドシートの「イベント情報」シートにも書き込む
+    // 列順: A:id B:title C:description D:date E:duration_minutes F:capacity
+    //       G:current_bookings H:speaker I:meet_url J:calendar_event_id
+    //       K:status L:spreadsheet_id M:肩書き N:開催形式 O:対象 P:画像URL Q:created_at R:updated_at
     const now = new Date().toISOString();
     const id = uuidv4();
     try {
       await appendRow(spreadsheetId, "イベント情報", [
-        id,
-        title,
-        description || "",
-        date,
-        String(duration),
-        String(cap),
-        "0",
-        speaker || "",
-        speaker_title || "",
-        formatVal,
-        targetVal,
-        meetUrl,
-        calendarEventId,
-        status || "draft",
-        now,
+        id,                   // A
+        title,                // B
+        description || "",    // C
+        date,                 // D
+        String(duration),     // E
+        String(cap),          // F
+        "0",                  // G: current_bookings
+        speaker || "",        // H
+        meetUrl,              // I
+        calendarEventId,      // J
+        status || "draft",    // K
+        spreadsheetId,        // L
+        speaker_title || "",  // M
+        formatVal,            // N
+        targetVal,            // O
+        "",                   // P: image_url（画像登録時に更新）
+        now,                  // Q: created_at
+        now,                  // R: updated_at
       ]);
     } catch (err) {
       console.error("Failed to write event info:", err);

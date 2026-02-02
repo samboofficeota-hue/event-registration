@@ -213,11 +213,12 @@ export async function createSeminarSpreadsheet(
         valueInputOption: "USER_ENTERED",
         data: [
           {
-            range: "イベント情報!A1:O1",
+            range: "イベント情報!A1:R1",
             values: [[
               "ID", "タイトル", "説明", "開催日時", "所要時間(分)",
-              "定員", "現在の予約数", "登壇者", "肩書き", "開催形式", "対象",
-              "Meet URL", "Calendar Event ID", "ステータス", "作成日時",
+              "定員", "現在の予約数", "登壇者", "Meet URL", "Calendar Event ID",
+              "ステータス", "spreadsheet_id", "肩書き", "開催形式", "対象",
+              "画像URL", "作成日時", "更新日時",
             ]],
           },
           {
