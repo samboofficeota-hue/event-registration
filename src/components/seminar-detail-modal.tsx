@@ -101,7 +101,7 @@ export function SeminarDetailModal({ seminar, onClose }: SeminarDetailModalProps
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.25 }}
-        className="fixed inset-0 bg-black/60 z-[100] backdrop-blur-sm"
+        className="fixed inset-0 bg-black z-[100]"
         onClick={handleClose}
       />
 
@@ -112,13 +112,13 @@ export function SeminarDetailModal({ seminar, onClose }: SeminarDetailModalProps
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: "100%" }}
         transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
-        className="fixed inset-0 z-[101] overflow-y-auto"
+        className="fixed inset-0 z-[101] flex justify-center overflow-y-auto"
       >
-        <div className="min-h-full bg-background relative">
-          {/* 閉じるボタン (固定位置) */}
+        <div className="w-full lg:w-[70%] min-h-full bg-background relative">
+          {/* 閉じるボタン */}
           <button
             onClick={handleClose}
-            className="fixed top-4 right-4 z-[102] w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center transition-colors backdrop-blur-sm"
+            className="absolute top-4 right-4 z-[102] w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 text-white flex items-center justify-center transition-colors backdrop-blur-sm"
             aria-label="閉じる"
           >
             <X className="w-5 h-5" />
@@ -171,7 +171,7 @@ export function SeminarDetailModal({ seminar, onClose }: SeminarDetailModalProps
               {/* 左カラム: 概要・特徴・講師 */}
               <div className="lg:col-span-2 space-y-8">
                 {/* セミナー概要 */}
-                <Card className="border-0 shadow-xl">
+                <Card className="border border-border shadow-xl">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-primary" />
@@ -186,7 +186,7 @@ export function SeminarDetailModal({ seminar, onClose }: SeminarDetailModalProps
                 </Card>
 
                 {/* このセミナーの特徴 */}
-                <Card className="border-0 shadow-xl">
+                <Card className="border border-border shadow-xl">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-pink-500" />
@@ -209,7 +209,7 @@ export function SeminarDetailModal({ seminar, onClose }: SeminarDetailModalProps
                 </Card>
 
                 {/* 講師紹介 */}
-                <Card className="border-0 shadow-xl overflow-hidden">
+                <Card className="border border-border shadow-xl overflow-hidden">
                   {/* グラデーション上バー */}
                   <div
                     className="h-1.5"
@@ -272,7 +272,7 @@ export function SeminarDetailModal({ seminar, onClose }: SeminarDetailModalProps
 
               {/* 右サイドバー: 予約情報 */}
               <div className="space-y-6">
-                <Card className="border-0 shadow-xl">
+                <Card className="border border-border shadow-xl">
                   {/* グラデーション上バー */}
                   <div
                     className="h-1.5 rounded-t-lg"
@@ -291,7 +291,7 @@ export function SeminarDetailModal({ seminar, onClose }: SeminarDetailModalProps
                         </span>
                       </div>
                       {/* プログレスバー */}
-                      <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                      <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
                         <div
                           className="h-full rounded-full transition-all duration-500"
                           style={{

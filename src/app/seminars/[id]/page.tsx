@@ -66,47 +66,9 @@ export default async function SeminarDetailPage({
 }) {
   const { id } = await params;
 
-  // ----- デバッグ用: 環境変数の存在確認 -----
-  const debugEnv = {
-    hasEmail: !!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    hasKey: !!process.env.GOOGLE_PRIVATE_KEY,
-    hasKeyId: !!process.env.GOOGLE_PRIVATE_KEY_ID,
-    hasSheetId: !!process.env.GOOGLE_SPREADSHEET_ID,
-  };
-
-  let seminar = null;
-  let debugError: string | null = null;
-  try {
-    seminar = await getSeminarById(id);
-  } catch (e) {
-    debugError = e instanceof Error ? e.message : String(e);
-  }
-
-  // デバッグ情報を一時的にレスポンスで返す
+  const seminar = await getSeminarById(id);
   if (!seminar) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-8">
-        <div className="max-w-xl w-full bg-card rounded-xl shadow-xl p-8 font-mono text-sm">
-          <h1 className="text-xl font-bold text-destructive mb-4">DEBUG: セミナー取得失敗</h1>
-          <p className="text-muted-foreground mb-2">ID: {id}</p>
-          <div className="bg-muted rounded-lg p-4 mb-4 whitespace-pre-wrap">
-            <p className="font-bold text-foreground mb-2">環境変数の存在:</p>
-            {JSON.stringify(debugEnv, null, 2)}
-          </div>
-          {debugError && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 whitespace-pre-wrap">
-              <p className="font-bold text-red-700 mb-1">エラー:</p>
-              <p className="text-red-600">{debugError}</p>
-            </div>
-          )}
-          {!debugError && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <p className="text-yellow-700">エラーなし・データも返されていない（IDが見つからないか、データが空の可能性あり）</p>
-            </div>
-          )}
-        </div>
-      </div>
-    );
+    return notFound();
   }
 
   const isFull = seminar.current_bookings >= seminar.capacity;
