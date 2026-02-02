@@ -39,7 +39,10 @@ export async function POST(
 
     const buffer = await file.arrayBuffer();
     const fileName = `seminar_${id}_${Date.now()}.${file.name.split(".").pop()}`;
+
+    console.log("[Image Upload] Uploading file:", fileName);
     const imageUrl = await uploadImageToDrive(fileName, buffer, file.type);
+    console.log("[Image Upload] Upload successful, URL:", imageUrl);
 
     // マスタースプレッドシートの P列（インデックス15）に画像URL を更新
     const now = new Date().toISOString();
@@ -48,7 +51,9 @@ export async function POST(
     updated[15] = imageUrl;
     updated[17] = now;
 
+    console.log("[Image Upload] Updating spreadsheet row", result.rowIndex, "with image URL at index 15");
     await updateMasterRow(result.rowIndex, updated);
+    console.log("[Image Upload] Spreadsheet update successful");
 
     return NextResponse.json({ image_url: imageUrl });
   } catch (error) {
