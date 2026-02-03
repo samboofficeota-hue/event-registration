@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,8 +15,39 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import type { Seminar } from "@/lib/types";
+import { ClipboardList, FileQuestion, Copy, Link2 } from "lucide-react";
+
+/** アンケートURL1行（表示＋コピー） */
+function SurveyUrlRow({ label, path }: { label: string; path: string }) {
+  const [copied, setCopied] = useState(false);
+  const fullUrl =
+    typeof window !== "undefined" ? `${window.location.origin}${path}` : path;
+
+  const handleCopy = () => {
+    if (typeof navigator === "undefined" || !navigator.clipboard) return;
+    navigator.clipboard.writeText(fullUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <div className="flex items-center gap-2 rounded-md bg-background px-3 py-2 border border-border">
+      <span className="text-sm text-muted-foreground shrink-0 w-24">{label}</span>
+      <code className="text-xs text-foreground truncate flex-1 min-w-0" title={fullUrl}>
+        {fullUrl}
+      </code>
+      <Button type="button" variant="ghost" size="icon" className="shrink-0 h-8 w-8" onClick={handleCopy}>
+        <Copy className="h-4 w-4" />
+        <span className="sr-only">コピー</span>
+      </Button>
+      {copied && <span className="text-xs text-green-600 shrink-0">コピーしました</span>}
+    </div>
+  );
+}
 
 /** Google Drive ファイルURLを直接画像URLに変換 */
 function resolveImageUrl(url: string | undefined): string {
@@ -51,6 +83,8 @@ export default function EditSeminarPage({
   const [status, setStatus] = useState("draft");
   const [format, setFormat] = useState<"venue" | "online" | "hybrid">("online");
   const [target, setTarget] = useState<"members_only" | "public">("public");
+  const [surveyPre, setSurveyPre] = useState<{ status: "loading" | "set" | "empty" | "none" | "error"; count?: number }>({ status: "loading" });
+  const [surveyPost, setSurveyPost] = useState<{ status: "loading" | "set" | "empty" | "none" | "error"; count?: number }>({ status: "loading" });
 
   useEffect(() => {
     fetch(`/api/seminars/${id}`)
@@ -62,6 +96,30 @@ export default function EditSeminarPage({
         setTarget(data.target || "public");
       });
   }, [id]);
+
+  useEffect(() => {
+    if (!seminar?.id || !seminar.spreadsheet_id) {
+      setSurveyPre({ status: "none" });
+      setSurveyPost({ status: "none" });
+      return;
+    }
+    setSurveyPre({ status: "loading" });
+    setSurveyPost({ status: "loading" });
+    Promise.all([
+      fetch(`/api/seminars/${seminar.id}/survey-questions?type=pre`).then((r) => r.json()),
+      fetch(`/api/seminars/${seminar.id}/survey-questions?type=post`).then((r) => r.json()),
+    ])
+      .then(([preRes, postRes]) => {
+        const preList = preRes?.questions && Array.isArray(preRes.questions) ? preRes.questions : [];
+        const postList = postRes?.questions && Array.isArray(postRes.questions) ? postRes.questions : [];
+        setSurveyPre(preList.length > 0 ? { status: "set", count: preList.length } : { status: "empty" });
+        setSurveyPost(postList.length > 0 ? { status: "set", count: postList.length } : { status: "empty" });
+      })
+      .catch(() => {
+        setSurveyPre({ status: "error" });
+        setSurveyPost({ status: "error" });
+      });
+  }, [seminar?.id, seminar?.spreadsheet_id]);
 
   if (!seminar) {
     return <p className="text-muted-foreground">読み込み中...</p>;
@@ -297,6 +355,84 @@ export default function EditSeminarPage({
                 )}
               </div>
             )}
+
+            {/* アンケート設定ステータス */}
+            <div className="rounded-lg border border-border bg-muted/50 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-foreground flex items-center gap-2">
+                  <ClipboardList className="h-4 w-4 text-muted-foreground" />
+                  アンケート設定
+                </span>
+                <Link href={`/admin/survey-questions?seminarId=${id}`}>
+                  <Button type="button" variant="outline" size="sm">
+                    設問を編集
+                  </Button>
+                </Link>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div className="flex items-center gap-2 rounded-md bg-background/80 px-3 py-2 border border-border">
+                  <FileQuestion className="h-4 w-4 text-sky-500 shrink-0" />
+                  <span className="text-muted-foreground">事前アンケート</span>
+                  <span className="ml-auto">
+                    {surveyPre.status === "loading" && (
+                      <span className="text-muted-foreground">確認中...</span>
+                    )}
+                    {surveyPre.status === "none" && (
+                      <Badge variant="secondary">シートなし</Badge>
+                    )}
+                    {surveyPre.status === "set" && (
+                      <Badge className="bg-sky-500/90 text-white">設定済み ({surveyPre.count}問)</Badge>
+                    )}
+                    {surveyPre.status === "empty" && (
+                      <Badge variant="outline">未設定</Badge>
+                    )}
+                    {surveyPre.status === "error" && (
+                      <Badge variant="destructive">取得失敗</Badge>
+                    )}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 rounded-md bg-background/80 px-3 py-2 border border-border">
+                  <FileQuestion className="h-4 w-4 text-amber-500 shrink-0" />
+                  <span className="text-muted-foreground">事後アンケート</span>
+                  <span className="ml-auto">
+                    {surveyPost.status === "loading" && (
+                      <span className="text-muted-foreground">確認中...</span>
+                    )}
+                    {surveyPost.status === "none" && (
+                      <Badge variant="secondary">シートなし</Badge>
+                    )}
+                    {surveyPost.status === "set" && (
+                      <Badge className="bg-amber-500/90 text-white">設定済み ({surveyPost.count}問)</Badge>
+                    )}
+                    {surveyPost.status === "empty" && (
+                      <Badge variant="outline">未設定</Badge>
+                    )}
+                    {surveyPost.status === "error" && (
+                      <Badge variant="destructive">取得失敗</Badge>
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              {/* 参加者用アンケートURL（管理者がメール等で参加者に送る用） */}
+              <div className="mt-4 pt-4 border-t border-border space-y-3">
+                <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                  <Link2 className="h-3.5 w-3.5" />
+                  参加者用アンケートURL（予約IDを置き換えて参加者に送信）
+                </p>
+                <SurveyUrlRow
+                  label="事前アンケート"
+                  path={`/seminars/${id}/pre-survey?rid=【予約ID】`}
+                />
+                <SurveyUrlRow
+                  label="事後アンケート"
+                  path={`/seminars/${id}/post-survey?rid=【予約ID】`}
+                />
+                <p className="text-xs text-muted-foreground">
+                  予約IDは「予約一覧」で各予約のIDを確認し、上記の【予約ID】部分を置き換えてください。
+                </p>
+              </div>
+            </div>
 
             <div className="space-y-2">
               <Label>ステータス</Label>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Calendar,
@@ -78,26 +79,22 @@ const highlights = [
 ];
 
 export function SeminarDetailModal({ seminar, onClose }: SeminarDetailModalProps) {
-  // モーダルが閉じる前にアニメーションが終わるまで待つ
   const [isClosing, setIsClosing] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleClose = () => {
     setIsClosing(true);
-    // アニメーション完了後に親にcloseを通す
     setTimeout(() => {
       setIsClosing(false);
       onClose();
     }, 300);
   };
 
-  // スクロール防止
-  // (モーダル開閉時にbody scrollを制御するのは親で行う)
-
-  if (!seminar && !isClosing) return null;
-
-  // アニメーション用: seminar が null になった後も閉じるアニメーション中は古いデータで描画しない
-  // → 親側で seminar を null にする前に close アニメーションが完了するため、ここでは seminar が null なら何も返さない
-  if (!seminar) return null;
+  if (!mounted || !seminar) return null;
 
   const isFull = seminar.current_bookings >= seminar.capacity;
   const isPast = new Date(seminar.date) < new Date();
@@ -105,7 +102,7 @@ export function SeminarDetailModal({ seminar, onClose }: SeminarDetailModalProps
   const progressPercent = (seminar.current_bookings / seminar.capacity) * 100;
   const date = new Date(seminar.date);
 
-  return (
+  const modalContent = (
     <AnimatePresence>
       {/* オーバーレイ */}
       <motion.div
@@ -419,4 +416,6 @@ export function SeminarDetailModal({ seminar, onClose }: SeminarDetailModalProps
       </motion.div>
     </AnimatePresence>
   );
+
+  return createPortal(modalContent, document.body);
 }

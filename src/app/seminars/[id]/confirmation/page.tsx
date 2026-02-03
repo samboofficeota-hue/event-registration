@@ -4,7 +4,7 @@ import { use, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle, Calendar, Clock, Mail, User, Building, Phone } from "lucide-react";
+import { CheckCircle, Calendar, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import type { Seminar } from "@/lib/types";
@@ -17,11 +17,11 @@ export default function ConfirmationPage({
   const { id } = use(params);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const bookingId = searchParams.get("booking_id");
+  const rid = searchParams.get("rid") ?? searchParams.get("booking_id");
   const [seminar, setSeminar] = useState<Seminar | null>(null);
 
   useEffect(() => {
-    if (!bookingId) {
+    if (!rid) {
       router.push("/");
       return;
     }
@@ -30,7 +30,7 @@ export default function ConfirmationPage({
       .then((res) => res.json())
       .then((data) => setSeminar(data))
       .catch(() => router.push("/"));
-  }, [id, bookingId, router]);
+  }, [id, rid, router]);
 
   if (!seminar) {
     return (
@@ -64,7 +64,7 @@ export default function ConfirmationPage({
           {/* 予約ID */}
           <div className="p-3 bg-gray-50 rounded-lg">
             <p className="text-xs text-muted-foreground mb-1">予約ID</p>
-            <p className="font-mono text-sm font-medium">{bookingId}</p>
+            <p className="font-mono text-sm font-medium">{rid}</p>
           </div>
 
           {/* セミナー情報 */}

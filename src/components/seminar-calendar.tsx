@@ -213,7 +213,11 @@ export function SeminarCalendar({ seminars, onSelectSeminar }: SeminarCalendarPr
                       {content}
                     </button>
                   ) : (
-                    <Link key={seminar.id} href={`/seminars/${seminar.id}`}>
+                    <Link
+                      key={seminar.id}
+                      href={`/seminars/${seminar.id}`}
+                      prefetch={false}
+                    >
                       {content}
                     </Link>
                   );
