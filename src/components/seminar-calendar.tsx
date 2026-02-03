@@ -13,6 +13,8 @@ import { ja } from "date-fns/locale";
 
 interface SeminarCalendarProps {
   seminars: Seminar[];
+  /** セミナークリック時に呼ばれるコールバック（指定時はモーダル表示、未指定時は従来のページ遷移） */
+  onSelectSeminar?: (seminar: Seminar) => void;
 }
 
 /** 開催形式の色バー */
@@ -22,7 +24,7 @@ const formatColors: Record<string, string> = {
   hybrid: "bg-pink-500",
 };
 
-export function SeminarCalendar({ seminars }: SeminarCalendarProps) {
+export function SeminarCalendar({ seminars, onSelectSeminar }: SeminarCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
@@ -162,10 +164,10 @@ export function SeminarCalendar({ seminars }: SeminarCalendarProps) {
                 exit={{ opacity: 0, y: -10 }}
                 className="space-y-4"
               >
-                {seminarsOnSelected.map((seminar) => (
-                  <Link key={seminar.id} href={`/seminars/${seminar.id}`}>
+                {seminarsOnSelected.map((seminar) => {
+                  const content = (
                     <motion.div
-                      className="p-4 rounded-xl border border-border hover:border-primary hover:shadow-lg transition-all bg-card"
+                      className="p-4 rounded-xl border border-border hover:border-primary hover:shadow-lg transition-all bg-card cursor-pointer"
                       whileHover={{ scale: 1.02 }}
                     >
                       <div className="flex gap-4">
@@ -200,8 +202,22 @@ export function SeminarCalendar({ seminars }: SeminarCalendarProps) {
                         </div>
                       </div>
                     </motion.div>
-                  </Link>
-                ))}
+                  );
+                  return onSelectSeminar ? (
+                    <button
+                      key={seminar.id}
+                      type="button"
+                      onClick={() => onSelectSeminar(seminar)}
+                      className="w-full text-left"
+                    >
+                      {content}
+                    </button>
+                  ) : (
+                    <Link key={seminar.id} href={`/seminars/${seminar.id}`}>
+                      {content}
+                    </Link>
+                  );
+                })}
               </motion.div>
             ) : (
               <motion.div

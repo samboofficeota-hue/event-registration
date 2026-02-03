@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Search, Grid, List } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SeminarCard } from "@/components/seminar-card";
 import { SeminarCalendar } from "@/components/seminar-calendar";
+import { SeminarDetailModal } from "@/components/seminar-detail-modal";
 import type { Seminar } from "@/lib/types";
 
 interface SeminarListClientProps {
@@ -33,6 +34,22 @@ export function SeminarListClient({ seminars }: SeminarListClientProps) {
   const [selectedFormat, setSelectedFormat] = useState("all");
   const [selectedTarget, setSelectedTarget] = useState("all");
   const [viewMode, setViewMode] = useState<"grid" | "calendar">("grid");
+  const [selectedSeminar, setSelectedSeminar] = useState<Seminar | null>(null);
+
+  useEffect(() => {
+    if (selectedSeminar) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [selectedSeminar]);
+
+  const handleCloseModal = useCallback(() => {
+    setSelectedSeminar(null);
+  }, []);
 
   const filteredSeminars = useMemo(() => {
     return seminars.filter((s) => {
@@ -170,6 +187,7 @@ export function SeminarListClient({ seminars }: SeminarListClientProps) {
                     key={seminar.id}
                     seminar={seminar}
                     index={index}
+                    onSelect={setSelectedSeminar}
                   />
                 ))}
               </div>
@@ -199,7 +217,10 @@ export function SeminarListClient({ seminars }: SeminarListClientProps) {
                 日付をクリックしてセミナーを確認
               </p>
             </div>
-            <SeminarCalendar seminars={filteredSeminars} />
+            <SeminarCalendar
+              seminars={filteredSeminars}
+              onSelectSeminar={setSelectedSeminar}
+            />
           </>
         )}
       </section>
@@ -210,6 +231,11 @@ export function SeminarListClient({ seminars }: SeminarListClientProps) {
           <p>© 2026 Seminar Hub. All rights reserved.</p>
         </div>
       </footer>
+
+      <SeminarDetailModal
+        seminar={selectedSeminar}
+        onClose={handleCloseModal}
+      />
     </>
   );
 }
