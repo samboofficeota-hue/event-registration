@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,6 +35,8 @@ const emptyQuestion = (): SurveyQuestion => ({
 });
 
 export default function AdminSurveyQuestionsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [seminars, setSeminars] = useState<Seminar[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
   const [preQuestions, setPreQuestions] = useState<SurveyQuestion[]>([]);
@@ -51,6 +54,14 @@ export default function AdminSurveyQuestionsPage() {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  const seminarIdFromUrl = searchParams.get("seminarId");
+  useEffect(() => {
+    if (seminarIdFromUrl && seminars.length > 0 && !selectedId) {
+      const exists = seminars.some((s) => s.id === seminarIdFromUrl && s.spreadsheet_id);
+      if (exists) setSelectedId(seminarIdFromUrl);
+    }
+  }, [seminarIdFromUrl, seminars, selectedId]);
 
   const seminarsWithSheet = seminars.filter((s) => s.spreadsheet_id);
 
@@ -157,6 +168,7 @@ export default function AdminSurveyQuestionsPage() {
         throw new Error(err.error || "保存に失敗しました");
       }
       toast.success("事前アンケート設問を保存しました");
+      router.push("/admin");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "保存に失敗しました");
     } finally {
@@ -181,6 +193,7 @@ export default function AdminSurveyQuestionsPage() {
         throw new Error(err.error || "保存に失敗しました");
       }
       toast.success("事後アンケート設問を保存しました");
+      router.push("/admin");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "保存に失敗しました");
     } finally {
@@ -250,7 +263,18 @@ export default function AdminSurveyQuestionsPage() {
 
       {selectedId && (
         <div className="space-y-8">
-          <Card className="border border-border bg-card">
+          {/* 事前アンケート：背景色で明示 */}
+          <section
+            className="rounded-xl border-2 border-sky-200 bg-sky-50/80 dark:bg-sky-950/30 dark:border-sky-800 p-4 md:p-6"
+            aria-label="事前アンケート"
+          >
+            <div className="mb-3 flex items-center gap-2">
+              <span className="rounded-full bg-sky-500 px-3 py-1 text-sm font-bold text-white">
+                事前アンケート
+              </span>
+              <span className="text-sm text-muted-foreground">セミナー参加前に回答する設問</span>
+            </div>
+            <Card className="border border-sky-200 bg-card dark:border-sky-800">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-foreground">事前アンケート設問</CardTitle>
               <div className="flex gap-2">
@@ -286,8 +310,20 @@ export default function AdminSurveyQuestionsPage() {
               )}
             </CardContent>
           </Card>
+          </section>
 
-          <Card className="border border-border bg-card">
+          {/* 事後アンケート：背景色で明示 */}
+          <section
+            className="rounded-xl border-2 border-amber-200 bg-amber-50/80 dark:bg-amber-950/30 dark:border-amber-800 p-4 md:p-6"
+            aria-label="事後アンケート"
+          >
+            <div className="mb-3 flex items-center gap-2">
+              <span className="rounded-full bg-amber-500 px-3 py-1 text-sm font-bold text-white">
+                事後アンケート
+              </span>
+              <span className="text-sm text-muted-foreground">セミナー参加後に回答する設問</span>
+            </div>
+            <Card className="border border-amber-200 bg-card dark:border-amber-800">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-foreground">事後アンケート設問</CardTitle>
               <div className="flex gap-2">
@@ -323,6 +359,7 @@ export default function AdminSurveyQuestionsPage() {
               )}
             </CardContent>
           </Card>
+          </section>
         </div>
       )}
     </div>
