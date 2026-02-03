@@ -16,7 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import type { SurveyQuestion } from "@/lib/survey-config";
 import type { Seminar } from "@/lib/types";
-import { Trash2, Plus, SheetPlus } from "lucide-react";
+import { Trash2, Plus, Sheet } from "lucide-react";
 
 const QUESTION_TYPES: { value: SurveyQuestion["type"]; label: string }[] = [
   { value: "rating", label: "評価（1〜5など）" },
@@ -232,7 +232,7 @@ export default function AdminSurveyQuestionsPage() {
               onClick={ensureSheets}
               disabled={ensuringSheets}
             >
-              <SheetPlus className="mr-2 h-4 w-4" />
+              <Sheet className="mr-2 h-4 w-4" />
               {ensuringSheets ? "追加中..." : "アンケートシートを追加"}
             </Button>
             <p className="mt-1 text-xs text-muted-foreground">

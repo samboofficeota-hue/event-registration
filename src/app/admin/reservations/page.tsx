@@ -36,21 +36,26 @@ export default function AdminReservationsPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedSeminar) {
-      setReservations([]);
-      return;
-    }
+    if (!selectedSeminar) return;
 
     const seminar = seminars.find((s) => s.id === selectedSeminar);
     if (!seminar?.spreadsheet_id) return;
 
-    setLoadingRes(true);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setLoadingRes(true);
+    });
     fetch(`/api/reservations?spreadsheet_id=${seminar.spreadsheet_id}`)
       .then((res) => res.json())
       .then((data) => {
-        if (Array.isArray(data)) setReservations(data);
+        if (!cancelled && Array.isArray(data)) setReservations(data);
       })
-      .finally(() => setLoadingRes(false));
+      .finally(() => {
+        if (!cancelled) setLoadingRes(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedSeminar, seminars]);
 
   if (loading) {

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Clock, MapPin, ChevronLeft, ChevronRight } from "lucide-react";
@@ -56,7 +57,7 @@ export function SeminarCalendar({ seminars }: SeminarCalendarProps) {
   return (
     <div className="grid md:grid-cols-2 gap-8">
       {/* カレンダー */}
-      <Card className="border-0 shadow-xl bg-card">
+      <Card className="border border-border bg-card rounded-xl">
         <CardHeader>
           <CardTitle className="text-xl font-bold flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-primary" />
@@ -142,7 +143,7 @@ export function SeminarCalendar({ seminars }: SeminarCalendarProps) {
       </Card>
 
       {/* 選択日のセミナー一覧 */}
-      <Card className="border-0 shadow-xl bg-card">
+      <Card className="border border-border bg-card rounded-xl">
         <CardHeader>
           <CardTitle className="text-xl font-bold">
             {selectedDate
@@ -162,9 +163,9 @@ export function SeminarCalendar({ seminars }: SeminarCalendarProps) {
                 className="space-y-4"
               >
                 {seminarsOnSelected.map((seminar) => (
-                  <a key={seminar.id} href={`/seminars/${seminar.id}`}>
+                  <Link key={seminar.id} href={`/seminars/${seminar.id}`}>
                     <motion.div
-                      className="p-4 rounded-xl border border-border hover:border-primary hover:shadow-lg transition-all bg-background"
+                      className="p-4 rounded-xl border border-border hover:border-primary hover:shadow-lg transition-all bg-card"
                       whileHover={{ scale: 1.02 }}
                     >
                       <div className="flex gap-4">
@@ -199,7 +200,7 @@ export function SeminarCalendar({ seminars }: SeminarCalendarProps) {
                         </div>
                       </div>
                     </motion.div>
-                  </a>
+                  </Link>
                 ))}
               </motion.div>
             ) : (

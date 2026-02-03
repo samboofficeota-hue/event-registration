@@ -38,16 +38,15 @@ export default function AdminSurveysPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedSeminar) {
-      setPreSurveys([]);
-      setPostSurveys([]);
-      return;
-    }
+    if (!selectedSeminar) return;
 
     const seminar = seminars.find((s) => s.id === selectedSeminar);
     if (!seminar?.spreadsheet_id) return;
 
-    setLoadingSurveys(true);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) setLoadingSurveys(true);
+    });
     Promise.all([
       fetch(`/api/surveys/results?spreadsheet_id=${seminar.spreadsheet_id}&type=pre`).then((r) =>
         r.json()
@@ -57,10 +56,17 @@ export default function AdminSurveysPage() {
       ),
     ])
       .then(([pre, post]) => {
-        if (Array.isArray(pre)) setPreSurveys(pre);
-        if (Array.isArray(post)) setPostSurveys(post);
+        if (!cancelled) {
+          if (Array.isArray(pre)) setPreSurveys(pre);
+          if (Array.isArray(post)) setPostSurveys(post);
+        }
       })
-      .finally(() => setLoadingSurveys(false));
+      .finally(() => {
+        if (!cancelled) setLoadingSurveys(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedSeminar, seminars]);
 
   if (loading) {

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { Clock, MapPin, Users, ArrowRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,8 +13,6 @@ import { ja } from "date-fns/locale";
 interface SeminarCardProps {
   seminar: Seminar;
   index: number;
-  /** カードクリック時に呼ばれるコールバック */
-  onSelect: (seminar: Seminar) => void;
 }
 
 /** Google Drive ファイルURLを直接画像URL に変換 */
@@ -54,7 +53,7 @@ const formatColors: Record<string, string> = {
   hybrid: "bg-pink-500 text-white",
 };
 
-export function SeminarCard({ seminar, index, onSelect }: SeminarCardProps) {
+export function SeminarCard({ seminar, index }: SeminarCardProps) {
   const isFull = seminar.current_bookings >= seminar.capacity;
   const isPast = new Date(seminar.date) < new Date();
   const spotsLeft = seminar.capacity - seminar.current_bookings;
@@ -68,14 +67,8 @@ export function SeminarCard({ seminar, index, onSelect }: SeminarCardProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: index * 0.1 }}
     >
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => onSelect(seminar)}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(seminar); } }}
-        className="cursor-pointer"
-      >
-        <Card className="group overflow-hidden hover:shadow-2xl transition-all duration-300 border-0 bg-card flex flex-col h-full">
+      <Link href={`/seminars/${seminar.id}`} className="block h-full">
+        <Card className="group overflow-hidden hover:shadow-2xl transition-all duration-300 border border-border bg-card flex flex-col h-full cursor-pointer">
           {/* 画像エリア（16:9固定、白背景） */}
           <div className="relative w-full aspect-[16/9] overflow-hidden bg-white">
             <img
@@ -199,7 +192,7 @@ export function SeminarCard({ seminar, index, onSelect }: SeminarCardProps) {
             </div>
           </CardContent>
         </Card>
-      </div>
+      </Link>
     </motion.div>
   );
 }
