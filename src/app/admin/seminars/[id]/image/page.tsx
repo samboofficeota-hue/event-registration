@@ -8,6 +8,25 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import type { Seminar } from "@/lib/types";
 
+// Google Drive URLを画像表示用URLに変換
+function resolveImageUrl(url: string | undefined): string {
+  if (!url) return "/9553.png";
+
+  // 既に uc?export=download 形式なら そのまま返す
+  if (url.includes("uc?export=download")) {
+    return url;
+  }
+
+  // /file/d/{id}/view 形式から変換
+  const match = url.match(/\/file\/d\/([^/]+)/);
+  if (match) {
+    return `https://drive.google.com/uc?export=download&id=${match[1]}`;
+  }
+
+  // 変換できない場合はデフォルト画像
+  return "/9553.png";
+}
+
 export default function SeminarImagePage({
   params,
 }: {
@@ -101,10 +120,7 @@ export default function SeminarImagePage({
               <Label className="text-sm text-muted-foreground">現在の画像</Label>
               <div className="rounded border overflow-hidden">
                 <img
-                  src={seminar.image_url.replace(
-                    /\/file\/d\/([^/]+)\/view/,
-                    "https://drive.google.com/uc?export=download&id=$1"
-                  )}
+                  src={resolveImageUrl(seminar.image_url)}
                   alt={seminar.title}
                   className="w-full max-h-64 object-contain"
                   onError={(e) => {

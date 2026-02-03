@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findMasterRowById, updateMasterRow, uploadImageToDrive } from "@/lib/google/sheets";
+import {
+  findMasterRowById,
+  updateMasterRow,
+  uploadImageToDrive,
+  findRowById,
+  updateRow
+} from "@/lib/google/sheets";
 
 const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -44,23 +50,43 @@ export async function POST(
     const imageUrl = await uploadImageToDrive(fileName, buffer, file.type);
     console.log("[Image Upload] Upload successful, URL:", imageUrl);
 
-    // マスタースプレッドシートの P列（インデックス15）に画像URL を更新
     const now = new Date().toISOString();
+    const individualSpreadsheetId = result.values[11]; // L列: spreadsheet_id
+
+    // 1. マスタースプレッドシートの P列（インデックス15）に画像URL を更新
+    console.log("[Image Upload] Updating master spreadsheet...");
     console.log("[Image Upload] Original row values length:", result.values.length);
-    console.log("[Image Upload] Original row data:", JSON.stringify(result.values));
 
-    const updated = [...result.values];
-    while (updated.length < 18) updated.push("");
-    updated[15] = imageUrl;
-    updated[17] = now;
+    const updatedMaster = [...result.values];
+    while (updatedMaster.length < 18) updatedMaster.push("");
+    updatedMaster[15] = imageUrl;  // P列
+    updatedMaster[17] = now;        // R列
 
-    console.log("[Image Upload] Updated row values length:", updated.length);
-    console.log("[Image Upload] P列 (index 15):", updated[15]);
-    console.log("[Image Upload] R列 (index 17):", updated[17]);
+    console.log("[Image Upload] Master P列 (index 15):", updatedMaster[15]);
+    console.log("[Image Upload] Master R列 (index 17):", updatedMaster[17]);
 
-    console.log("[Image Upload] Updating spreadsheet row", result.rowIndex, "with image URL at index 15");
-    await updateMasterRow(result.rowIndex, updated);
-    console.log("[Image Upload] Spreadsheet update successful");
+    await updateMasterRow(result.rowIndex, updatedMaster);
+    console.log("[Image Upload] Master spreadsheet update successful");
+
+    // 2. 個別イベントスプレッドシートの「イベント情報」シートも更新
+    if (individualSpreadsheetId) {
+      console.log("[Image Upload] Updating individual spreadsheet:", individualSpreadsheetId);
+
+      const individualResult = await findRowById(individualSpreadsheetId, "イベント情報", id);
+      if (individualResult) {
+        const updatedIndividual = [...individualResult.values];
+        while (updatedIndividual.length < 18) updatedIndividual.push("");
+        updatedIndividual[15] = imageUrl;  // P列
+        updatedIndividual[17] = now;        // R列
+
+        await updateRow(individualSpreadsheetId, "イベント情報", individualResult.rowIndex, updatedIndividual);
+        console.log("[Image Upload] Individual spreadsheet update successful");
+      } else {
+        console.warn("[Image Upload] Individual spreadsheet row not found");
+      }
+    } else {
+      console.warn("[Image Upload] No individual spreadsheet ID found");
+    }
 
     return NextResponse.json({ image_url: imageUrl });
   } catch (error) {
