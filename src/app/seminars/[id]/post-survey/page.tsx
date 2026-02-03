@@ -1,11 +1,11 @@
 "use client";
 
-import { use } from "react";
+import { use, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SurveyForm } from "@/components/survey-form";
 import { postSurveyQuestions } from "@/lib/survey-config";
+import type { SurveyQuestion } from "@/lib/survey-config";
 import { toast } from "sonner";
 
 export default function PostSurveyPage({
@@ -17,6 +17,16 @@ export default function PostSurveyPage({
   const searchParams = useSearchParams();
   const rid = searchParams.get("rid");
   const [submitted, setSubmitted] = useState(false);
+  const [questions, setQuestions] = useState<SurveyQuestion[]>(postSurveyQuestions);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/seminars/${id}/survey-questions?type=post`)
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((data) => setQuestions(data.questions ?? postSurveyQuestions))
+      .catch(() => setQuestions(postSurveyQuestions))
+      .finally(() => setLoading(false));
+  }, [id]);
 
   if (!rid) {
     return (
@@ -66,6 +76,14 @@ export default function PostSurveyPage({
     setSubmitted(true);
   }
 
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-lg text-center py-8 text-muted-foreground">
+        読み込み中...
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-lg">
       <Card>
@@ -77,7 +95,7 @@ export default function PostSurveyPage({
         </CardHeader>
         <CardContent>
           <SurveyForm
-            questions={postSurveyQuestions}
+            questions={questions}
             onSubmit={handleSubmit}
             submitLabel="アンケートを送信する"
           />

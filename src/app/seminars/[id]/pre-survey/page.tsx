@@ -1,11 +1,12 @@
 "use client";
 
-import { use } from "react";
+import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SurveyForm } from "@/components/survey-form";
 import { preSurveyQuestions } from "@/lib/survey-config";
+import type { SurveyQuestion } from "@/lib/survey-config";
 import { toast } from "sonner";
 
 export default function PreSurveyPage({
@@ -17,6 +18,16 @@ export default function PreSurveyPage({
   const router = useRouter();
   const searchParams = useSearchParams();
   const rid = searchParams.get("rid");
+  const [questions, setQuestions] = useState<SurveyQuestion[]>(preSurveyQuestions);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/seminars/${id}/survey-questions?type=pre`)
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((data) => setQuestions(data.questions ?? preSurveyQuestions))
+      .catch(() => setQuestions(preSurveyQuestions))
+      .finally(() => setLoading(false));
+  }, [id]);
 
   if (!rid) {
     return (
@@ -49,6 +60,14 @@ export default function PreSurveyPage({
     router.push(`/seminars/${id}/confirmation?rid=${rid}`);
   }
 
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-lg text-center py-8 text-muted-foreground">
+        読み込み中...
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-lg">
       <Card>
@@ -60,7 +79,7 @@ export default function PreSurveyPage({
         </CardHeader>
         <CardContent>
           <SurveyForm
-            questions={preSurveyQuestions}
+            questions={questions}
             onSubmit={handleSubmit}
             submitLabel="アンケートを送信する"
           />
