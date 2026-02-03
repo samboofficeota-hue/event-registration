@@ -78,6 +78,122 @@ export async function appendRow(
   }
 }
 
+/**
+ * 指定シートの指定範囲を指定した値で上書きする。
+ * 設問シート全体の書き込みに使用する。
+ */
+export async function setSheetValues(
+  spreadsheetId: string,
+  sheetName: string,
+  values: string[][]
+): Promise<void> {
+  if (values.length === 0) return;
+  const token = await getAccessToken();
+  const lastRow = values.length;
+  const lastCol = Math.max(...values.map((row) => row.length), 1);
+  const colLetter =
+    lastCol <= 26
+      ? String.fromCharCode(64 + lastCol)
+      : String.fromCharCode(64 + Math.floor(lastCol / 26)) +
+        String.fromCharCode(64 + (lastCol % 26));
+  const range = `${sheetName}!A1:${colLetter}${lastRow}`;
+  const response = await fetch(
+    `${SHEETS_API}/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ values }),
+    }
+  );
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Failed to set sheet ${sheetName}: ${error}`);
+  }
+}
+
+/**
+ * スプレッドシートのシート名一覧を取得する。
+ */
+export async function getSpreadsheetSheetTitles(
+  spreadsheetId: string
+): Promise<string[]> {
+  const token = await getAccessToken();
+  const response = await fetch(
+    `${SHEETS_API}/${spreadsheetId}?fields=sheets(properties(title))`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Failed to get spreadsheet: ${error}`);
+  }
+  const data = await response.json();
+  const sheets = data.sheets || [];
+  return sheets.map(
+    (s: { properties?: { title?: string } }) => s.properties?.title ?? ""
+  );
+}
+
+/**
+ * 既存スプレッドシートに新しいシートを追加する。
+ */
+export async function addSheet(
+  spreadsheetId: string,
+  title: string
+): Promise<void> {
+  const token = await getAccessToken();
+  const response = await fetch(
+    `${SHEETS_API}/${spreadsheetId}:batchUpdate`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        requests: [{ addSheet: { properties: { title } } }],
+      }),
+    }
+  );
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Failed to add sheet ${title}: ${error}`);
+  }
+}
+
+/**
+ * 既存のセミナー用スプレッドシートに「事前アンケート設問」「事後アンケート設問」シートが
+ * なければ追加し、デフォルトの設問行を書き込む。既に存在するシートは上書きしない。
+ */
+export async function ensureSurveyQuestionSheets(
+  spreadsheetId: string
+): Promise<{ addedPre: boolean; addedPost: boolean }> {
+  const titles = await getSpreadsheetSheetTitles(spreadsheetId);
+  const hasPre = titles.includes("事前アンケート設問");
+  const hasPost = titles.includes("事後アンケート設問");
+
+  if (!hasPre) {
+    await addSheet(spreadsheetId, "事前アンケート設問");
+    const rows = [
+      SURVEY_QUESTION_SHEET_HEADER,
+      ...preSurveyQuestions.map((q, i) => surveyQuestionToRow(q, i + 1)),
+    ];
+    await setSheetValues(spreadsheetId, "事前アンケート設問", rows);
+  }
+  if (!hasPost) {
+    await addSheet(spreadsheetId, "事後アンケート設問");
+    const rows = [
+      SURVEY_QUESTION_SHEET_HEADER,
+      ...postSurveyQuestions.map((q, i) => surveyQuestionToRow(q, i + 1)),
+    ];
+    await setSheetValues(spreadsheetId, "事後アンケート設問", rows);
+  }
+
+  return { addedPre: !hasPre, addedPost: !hasPost };
+}
+
 export async function updateRow(
   spreadsheetId: string,
   sheetName: string,
