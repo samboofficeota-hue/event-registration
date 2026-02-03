@@ -1,7 +1,31 @@
 import { getAccessToken } from "./auth";
+import {
+  preSurveyQuestions,
+  postSurveyQuestions,
+  type SurveyQuestion,
+} from "@/lib/survey-config";
 
 const SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets";
 const DRIVE_API = "https://www.googleapis.com/drive/v3/files";
+
+/** 設問シートの列: A:設問ID B:ラベル C:タイプ D:必須 E:選択肢 F:min G:max H:プレースホルダ I:表示順 */
+export const SURVEY_QUESTION_SHEET_HEADER = [
+  "設問ID", "ラベル", "タイプ", "必須", "選択肢", "min", "max", "プレースホルダ", "表示順",
+];
+
+export function surveyQuestionToRow(q: SurveyQuestion, order: number): string[] {
+  return [
+    q.id,
+    q.label,
+    q.type,
+    q.required ? "TRUE" : "FALSE",
+    (q.options || []).join(","),
+    q.min != null ? String(q.min) : "",
+    q.max != null ? String(q.max) : "",
+    q.placeholder || "",
+    String(order),
+  ];
+}
 
 // ---------------------------------------------------------------------------
 // マスタースプレッドシートID（環境変数から取得）
@@ -175,7 +199,7 @@ export async function createSeminarSpreadsheet(
 ): Promise<string> {
   const token = await getAccessToken();
 
-  // 1. スプレッドシート作成（4シート構成）
+  // 1. スプレッドシート作成（6シート構成：イベント・予約・事前/事後アンケート・事前/事後アンケート設問）
   const createRes = await fetch(SHEETS_API, {
     method: "POST",
     headers: {
@@ -191,6 +215,8 @@ export async function createSeminarSpreadsheet(
         { properties: { title: "予約情報", index: 1 } },
         { properties: { title: "事前アンケート", index: 2 } },
         { properties: { title: "事後アンケート", index: 3 } },
+        { properties: { title: "事前アンケート設問", index: 4 } },
+        { properties: { title: "事後アンケート設問", index: 5 } },
       ],
     }),
   });
@@ -246,6 +272,22 @@ export async function createSeminarSpreadsheet(
               "登壇者評価(1-5)", "学んだこと", "改善点",
               "推薦度(0-10)", "回答日時", "備考",
             ]],
+          },
+          {
+            range: "事前アンケート設問!A1:I1",
+            values: [SURVEY_QUESTION_SHEET_HEADER],
+          },
+          {
+            range: "事前アンケート設問!A2:I5",
+            values: preSurveyQuestions.map((q, i) => surveyQuestionToRow(q, i + 1)),
+          },
+          {
+            range: "事後アンケート設問!A1:I1",
+            values: [SURVEY_QUESTION_SHEET_HEADER],
+          },
+          {
+            range: "事後アンケート設問!A2:I7",
+            values: postSurveyQuestions.map((q, i) => surveyQuestionToRow(q, i + 1)),
           },
         ],
       }),
