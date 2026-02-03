@@ -11,7 +11,8 @@
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "typecheck": "tsc --noEmit",
     "fix-headers": "tsx scripts/fix-master-headers.ts",
-    "delete-data": "tsx scripts/delete-all-reservations.ts"
+    "delete-data": "tsx scripts/delete-all-reservations.ts",
+    "sync-images": "tsx scripts/sync-images-to-individual.ts"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.16.0",

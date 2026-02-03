@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findMasterRowById, updateMasterRow } from "@/lib/google/sheets";
+import { findMasterRowById, updateMasterRow, findRowById, updateRow } from "@/lib/google/sheets";
 import { updateCalendarEvent, deleteCalendarEvent } from "@/lib/google/calendar";
 import { rowToSeminar } from "@/lib/seminars";
 
@@ -74,7 +74,21 @@ export async function PUT(
       }
     }
 
+    // マスタースプレッドシートを更新
     await updateMasterRow(result.rowIndex, updated);
+
+    // 個別イベントスプレッドシートの「イベント情報」シートも更新
+    if (current.spreadsheet_id) {
+      try {
+        const individualResult = await findRowById(current.spreadsheet_id, "イベント情報", id);
+        if (individualResult) {
+          await updateRow(current.spreadsheet_id, "イベント情報", individualResult.rowIndex, updated);
+          console.log("[Seminar Update] Individual spreadsheet synced");
+        }
+      } catch (err) {
+        console.error("[Seminar Update] Failed to sync individual spreadsheet:", err);
+      }
+    }
 
     return NextResponse.json(rowToSeminar(updated));
   } catch (error) {
@@ -104,7 +118,25 @@ export async function DELETE(
     updated[10] = "cancelled";
     updated[17] = now;
 
+    // マスタースプレッドシートを更新
     await updateMasterRow(result.rowIndex, updated);
+
+    // 個別イベントスプレッドシートの「イベント情報」シートも更新
+    if (current.spreadsheet_id) {
+      try {
+        const individualResult = await findRowById(current.spreadsheet_id, "イベント情報", id);
+        if (individualResult) {
+          const updatedIndividual = [...individualResult.values];
+          while (updatedIndividual.length < 18) updatedIndividual.push("");
+          updatedIndividual[10] = "cancelled";
+          updatedIndividual[17] = now;
+          await updateRow(current.spreadsheet_id, "イベント情報", individualResult.rowIndex, updatedIndividual);
+          console.log("[Seminar Delete] Individual spreadsheet synced");
+        }
+      } catch (err) {
+        console.error("[Seminar Delete] Failed to sync individual spreadsheet:", err);
+      }
+    }
 
     if (current.calendar_event_id) {
       try {
