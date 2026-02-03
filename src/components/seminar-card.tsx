@@ -20,15 +20,18 @@ interface SeminarCardProps {
 function resolveImageUrl(url: string | undefined): string {
   if (!url) return "/9553.png";
 
-  // 既に uc?export=download 形式なら そのまま返す
-  if (url.includes("uc?export=download")) {
-    return url;
+  // 既に uc?export=view 形式なら そのまま返す
+  if (url.includes("uc?export=view") || url.includes("uc?export=download")) {
+    // download形式の場合はview形式に変換（より安定）
+    return url.replace("uc?export=download", "uc?export=view");
   }
 
   // /file/d/{id}/view 形式から変換
   const match = url.match(/\/file\/d\/([^/]+)/);
   if (match) {
-    return `https://drive.google.com/uc?export=download&id=${match[1]}`;
+    const fileId = match[1];
+    // サムネイル画像URLを使用（より軽量で高速）
+    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
   }
 
   // マッチしない場合は汎用画像

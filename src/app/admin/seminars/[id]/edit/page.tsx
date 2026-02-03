@@ -17,6 +17,28 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import type { Seminar } from "@/lib/types";
 
+/** Google Drive ファイルURLを直接画像URLに変換 */
+function resolveImageUrl(url: string | undefined): string {
+  if (!url) return "/9553.png";
+
+  // 既に uc?export=view 形式なら そのまま返す
+  if (url.includes("uc?export=view") || url.includes("uc?export=download")) {
+    // download形式の場合はview形式に変換（より安定）
+    return url.replace("uc?export=download", "uc?export=view");
+  }
+
+  // /file/d/{id}/view 形式から変換
+  const match = url.match(/\/file\/d\/([^/]+)/);
+  if (match) {
+    const fileId = match[1];
+    // サムネイル画像URLを使用（より軽量で高速）
+    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
+  }
+
+  // マッチしない場合は汎用画像
+  return "/9553.png";
+}
+
 export default function EditSeminarPage({
   params,
 }: {
@@ -124,13 +146,31 @@ export default function EditSeminarPage({
                 defaultValue={seminar.description}
                 rows={4}
               />
+
+              {/* 画像サムネイル表示 */}
+              {seminar.image_url && (
+                <div className="mt-4">
+                  <Label className="text-sm text-muted-foreground">登録済み画像</Label>
+                  <div className="mt-2 rounded border overflow-hidden bg-white max-w-md">
+                    <img
+                      src={resolveImageUrl(seminar.image_url)}
+                      alt={seminar.title}
+                      className="w-full h-auto object-contain"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "/9553.png";
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => router.push(`/admin/seminars/${id}/image`)}
               >
-                画像登録
+                {seminar.image_url ? "画像を変更" : "画像登録"}
               </Button>
             </div>
 
