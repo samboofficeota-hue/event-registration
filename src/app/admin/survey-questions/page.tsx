@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,7 +34,7 @@ const emptyQuestion = (): SurveyQuestion => ({
   placeholder: "",
 });
 
-export default function AdminSurveyQuestionsPage() {
+function SurveyQuestionsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [seminars, setSeminars] = useState<Seminar[]>([]);
@@ -363,6 +363,14 @@ export default function AdminSurveyQuestionsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function AdminSurveyQuestionsPage() {
+  return (
+    <Suspense fallback={<p className="text-muted-foreground">読み込み中...</p>}>
+      <SurveyQuestionsContent />
+    </Suspense>
   );
 }
 
