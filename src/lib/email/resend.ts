@@ -1,6 +1,18 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// ビルド時のエラーを防ぐため、実行時に遅延初期化
+let resendInstance: Resend | null = null;
+
+function getResend(): Resend {
+  if (!resendInstance) {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      throw new Error("RESEND_API_KEY is not set");
+    }
+    resendInstance = new Resend(apiKey);
+  }
+  return resendInstance;
+}
 
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
 
@@ -23,7 +35,7 @@ export async function sendReservationConfirmation(
   const { to, name, seminarTitle, seminarDate, reservationId, preSurveyUrl, meetUrl } = data;
 
   try {
-    await resend.emails.send({
+    await getResend().emails.send({
       from: `Alliance Forum <${FROM_EMAIL}>`,
       to,
       subject: `【${seminarTitle}】予約完了のお知らせ`,
@@ -118,7 +130,7 @@ export async function sendCancellationNotification(
   const { to, name, seminarTitle, reservationId } = data;
 
   try {
-    await resend.emails.send({
+    await getResend().emails.send({
       from: `Alliance Forum <${FROM_EMAIL}>`,
       to,
       subject: `【${seminarTitle}】予約キャンセルのお知らせ`,
