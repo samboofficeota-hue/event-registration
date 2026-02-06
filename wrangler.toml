@@ -14,3 +14,4 @@ service = "event-registration"
 
 [vars]
 NEXT_PUBLIC_APP_URL = "https://event-registration.y-ota.workers.dev"
+RESEND_FROM_EMAIL = "contact@allianceforum.org"

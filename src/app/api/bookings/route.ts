@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { findMasterRowById, appendRow, updateCell, findRowById, updateRow } from "@/lib/google/sheets";
+import { sendReservationConfirmation, sendCancellationNotification } from "@/lib/email/resend";
 import type { Seminar } from "@/lib/types";
 
 // マスタースプレッドシート列順: A~R (新レイアウトは18列、P:画像URL)
@@ -87,6 +88,31 @@ export async function POST(request: NextRequest) {
       6,
       String(seminar.current_bookings + 1)
     );
+
+    // メール送信: 予約確認メール
+    try {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      const preSurveyUrl = `${appUrl}/seminars/${seminar_id}/pre-survey?rid=${id}`;
+
+      // 日時のフォーマット
+      const date = new Date(seminar.date);
+      const formattedDate = `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+
+      await sendReservationConfirmation({
+        to: email,
+        name,
+        seminarTitle: seminar.title,
+        seminarDate: formattedDate,
+        reservationId: id,
+        preSurveyUrl,
+        meetUrl: seminar.meet_url || undefined,
+      });
+
+      console.log(`[Booking] Confirmation email sent to ${email}`);
+    } catch (emailError) {
+      // メール送信失敗はログに記録するが、予約自体は成功として返す
+      console.error("[Booking] Failed to send confirmation email:", emailError);
+    }
 
     return NextResponse.json(
       {
@@ -220,6 +246,21 @@ export async function DELETE(request: NextRequest) {
       6,
       String(Math.max(0, currentBookings - 1))
     );
+
+    // メール送信: キャンセル確認メール
+    try {
+      await sendCancellationNotification({
+        to: row[2], // メールアドレス
+        name: row[1], // 氏名
+        seminarTitle: seminar.title,
+        reservationId: id,
+      });
+
+      console.log(`[Booking] Cancellation email sent to ${row[2]}`);
+    } catch (emailError) {
+      // メール送信失敗はログに記録するが、キャンセル自体は成功として返す
+      console.error("[Booking] Failed to send cancellation email:", emailError);
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
