@@ -5,10 +5,9 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { href: "/admin", label: "ダッシュボード", icon: "📊" },
+  { href: "/admin", label: "実施一覧", icon: "📊" },
   { href: "/admin/seminars", label: "セミナー管理", icon: "📅" },
   { href: "/admin/reservations", label: "予約一覧", icon: "📋" },
-  { href: "/admin/survey-questions", label: "アンケート作成", icon: "✏️" },
   { href: "/admin/surveys", label: "アンケート結果", icon: "📝" },
 ];
 
@@ -16,13 +15,16 @@ export function AdminSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-64 border-r border-sidebar-border bg-sidebar p-4">
-      <div className="mb-6">
-        <Link href="/admin" className="text-lg font-bold text-sidebar-foreground">
+    <aside className="flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar font-sans">
+      <div className="p-4 pb-2">
+        <Link
+          href="/admin"
+          className="text-lg font-bold tracking-tight text-sidebar-foreground"
+        >
           管理画面
         </Link>
       </div>
-      <nav className="space-y-1">
+      <nav className="flex-1 space-y-1 px-2 pb-4">
         {navItems.map((item) => {
           const isActive =
             item.href === "/admin"
@@ -45,7 +47,7 @@ export function AdminSidebar() {
           );
         })}
       </nav>
-      <div className="mt-8 border-t border-sidebar-border pt-4">
+      <div className="border-t border-sidebar-border p-4 pt-4">
         <Link
           href="/seminars"
           className="text-sm text-sidebar-foreground/80 hover:text-sidebar-foreground"

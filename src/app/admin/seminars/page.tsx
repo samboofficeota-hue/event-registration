@@ -60,17 +60,24 @@ export default function AdminSeminarsPage() {
   }
 
   if (loading) {
-    return <p className="text-muted-foreground">読み込み中...</p>;
+    return <p className="text-sm text-muted-foreground">読み込み中...</p>;
   }
 
   return (
-    <div>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-foreground">セミナー管理</h1>
+    <div className="space-y-6">
+      <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            セミナー管理
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            セミナーの作成・編集・公開を行います。
+          </p>
+        </div>
         <Link href="/admin/seminars/new">
-          <Button className="bg-primary text-primary-foreground hover:bg-primary/90">新規作成</Button>
+          <Button>新規作成</Button>
         </Link>
-      </div>
+      </header>
 
       <Table className="rounded-lg border border-border">
         <TableHeader>

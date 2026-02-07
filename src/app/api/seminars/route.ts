@@ -8,11 +8,13 @@ import {
 } from "@/lib/google/sheets";
 import { createCalendarEvent } from "@/lib/google/calendar";
 import { rowToSeminar } from "@/lib/seminars";
+import { getSurveyQuestions } from "@/lib/survey/storage";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const statusFilter = searchParams.get("status");
+    const withSurveyStatus = searchParams.get("with_survey_status") === "1";
 
     const rows = await getMasterData();
     let seminars = rows.slice(1).filter((row) => row[0]?.trim()).map(rowToSeminar);
@@ -22,6 +24,26 @@ export async function GET(request: NextRequest) {
     }
 
     seminars.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    if (withSurveyStatus) {
+      const withStatus = await Promise.all(
+        seminars.map(async (s) => {
+          if (!s.spreadsheet_id) {
+            return { ...s, has_pre_survey: false, has_post_survey: false };
+          }
+          const [pre, post] = await Promise.all([
+            getSurveyQuestions(s.spreadsheet_id, "pre"),
+            getSurveyQuestions(s.spreadsheet_id, "post"),
+          ]);
+          return {
+            ...s,
+            has_pre_survey: Array.isArray(pre) && pre.length > 0,
+            has_post_survey: Array.isArray(post) && post.length > 0,
+          };
+        })
+      );
+      return NextResponse.json(withStatus);
+    }
 
     return NextResponse.json(seminars);
   } catch (error) {

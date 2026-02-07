@@ -70,14 +70,21 @@ export default function AdminSurveysPage() {
   }, [selectedSeminar, seminars]);
 
   if (loading) {
-    return <p className="text-muted-foreground">読み込み中...</p>;
+    return <p className="text-sm text-muted-foreground">読み込み中...</p>;
   }
 
   return (
-    <div>
-      <h1 className="mb-6 text-2xl font-bold text-foreground">アンケート結果</h1>
+    <div className="space-y-6">
+      <header>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          アンケート結果
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          セミナーを選択するとアンケート結果が表示されます。
+        </p>
+      </header>
 
-      <div className="mb-4 max-w-sm">
+      <div className="max-w-sm">
         <Select value={selectedSeminar} onValueChange={setSelectedSeminar}>
           <SelectTrigger>
             <SelectValue placeholder="セミナーを選択" />
@@ -93,12 +100,14 @@ export default function AdminSurveysPage() {
       </div>
 
       {!selectedSeminar && (
-        <p className="text-muted-foreground">
-          セミナーを選択するとアンケート結果が表示されます。
+        <p className="text-sm text-muted-foreground">
+          セミナーを選択してください。
         </p>
       )}
 
-      {loadingSurveys && <p className="text-muted-foreground">読み込み中...</p>}
+      {loadingSurveys && (
+        <p className="text-sm text-muted-foreground">読み込み中...</p>
+      )}
 
       {selectedSeminar && !loadingSurveys && (
         <Tabs defaultValue="pre">
@@ -107,17 +116,17 @@ export default function AdminSurveysPage() {
             <TabsTrigger value="post">事後アンケート ({postSurveys.length}件)</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="pre">
+          <TabsContent value="pre" className="mt-4 space-y-4">
             {preSurveys.length === 0 ? (
-              <p className="mt-4 text-muted-foreground">回答がありません。</p>
+              <p className="text-sm text-muted-foreground">回答がありません。</p>
             ) : (
               <>
-                <Card className="mb-4 mt-4 border border-border bg-card">
+                <Card className="shadow-sm">
                   <CardHeader>
-                    <CardTitle className="text-sm text-muted-foreground">関心度 平均</CardTitle>
+                    <CardTitle className="text-sm font-medium text-muted-foreground">関心度 平均</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-2xl font-bold text-foreground">
+                    <p className="text-2xl font-bold tracking-tight text-foreground">
                       {(
                         preSurveys.reduce(
                           (sum, s) => sum + (parseInt(s.q1_interest_level) || 0),
@@ -163,18 +172,18 @@ export default function AdminSurveysPage() {
             )}
           </TabsContent>
 
-          <TabsContent value="post">
+          <TabsContent value="post" className="mt-4 space-y-4">
             {postSurveys.length === 0 ? (
-              <p className="mt-4 text-muted-foreground">回答がありません。</p>
+              <p className="text-sm text-muted-foreground">回答がありません。</p>
             ) : (
               <>
-                <div className="mb-4 mt-4 grid gap-4 sm:grid-cols-3">
-                  <Card className="border border-border bg-card">
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <Card className="shadow-sm">
                     <CardHeader>
-                      <CardTitle className="text-sm text-muted-foreground">満足度 平均</CardTitle>
+                      <CardTitle className="text-sm font-medium text-muted-foreground">満足度 平均</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-2xl font-bold text-foreground">
+                      <p className="text-2xl font-bold tracking-tight text-foreground">
                         {(
                           postSurveys.reduce(
                             (sum, s) => sum + (parseInt(s.q1_satisfaction) || 0),
@@ -185,12 +194,12 @@ export default function AdminSurveysPage() {
                       </p>
                     </CardContent>
                   </Card>
-                  <Card className="border border-border bg-card">
+                  <Card className="shadow-sm">
                     <CardHeader>
-                      <CardTitle className="text-sm text-muted-foreground">内容の質 平均</CardTitle>
+                      <CardTitle className="text-sm font-medium text-muted-foreground">内容の質 平均</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-2xl font-bold text-foreground">
+                      <p className="text-2xl font-bold tracking-tight text-foreground">
                         {(
                           postSurveys.reduce(
                             (sum, s) => sum + (parseInt(s.q2_content_quality) || 0),
@@ -201,12 +210,12 @@ export default function AdminSurveysPage() {
                       </p>
                     </CardContent>
                   </Card>
-                  <Card className="border border-border bg-card">
+                  <Card className="shadow-sm">
                     <CardHeader>
-                      <CardTitle className="text-sm text-muted-foreground">NPS 平均</CardTitle>
+                      <CardTitle className="text-sm font-medium text-muted-foreground">NPS 平均</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-2xl font-bold text-foreground">
+                      <p className="text-2xl font-bold tracking-tight text-foreground">
                         {(
                           postSurveys.reduce(
                             (sum, s) => sum + (parseInt(s.q6_recommend) || 0),

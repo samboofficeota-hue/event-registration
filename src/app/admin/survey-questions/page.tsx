@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import type { SurveyQuestion } from "@/lib/survey-config";
 import type { Seminar } from "@/lib/types";
@@ -62,6 +63,17 @@ function SurveyQuestionsContent() {
       if (exists) setSelectedId(seminarIdFromUrl);
     }
   }, [seminarIdFromUrl, seminars, selectedId]);
+
+  // アンケート作成は予約一覧のセミナーカードから入る想定。URLに seminarId が無い場合は予約一覧へ
+  useEffect(() => {
+    if (loading || seminars.length === 0) return;
+    if (!seminarIdFromUrl) {
+      router.replace("/admin/reservations");
+      return;
+    }
+    const exists = seminars.some((s) => s.id === seminarIdFromUrl && s.spreadsheet_id);
+    if (!exists && !selectedId) router.replace("/admin/reservations");
+  }, [loading, seminars.length, seminarIdFromUrl, selectedId, router]);
 
   const seminarsWithSheet = seminars.filter((s) => s.spreadsheet_id);
 
@@ -168,7 +180,7 @@ function SurveyQuestionsContent() {
         throw new Error(err.error || "保存に失敗しました");
       }
       toast.success("事前アンケート設問を保存しました");
-      router.push("/admin");
+      router.push("/admin/reservations");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "保存に失敗しました");
     } finally {
@@ -193,7 +205,7 @@ function SurveyQuestionsContent() {
         throw new Error(err.error || "保存に失敗しました");
       }
       toast.success("事後アンケート設問を保存しました");
-      router.push("/admin");
+      router.push("/admin/reservations");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "保存に失敗しました");
     } finally {
@@ -208,12 +220,17 @@ function SurveyQuestionsContent() {
   }
 
   return (
-    <div>
-      <h1 className="mb-6 text-2xl font-bold text-foreground">
-        アンケート作成
-      </h1>
+    <div className="space-y-6">
+      <header>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          アンケート作成
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          セミナーを選択し、事前アンケート・事後アンケートの設問を編集します。
+        </p>
+      </header>
 
-      <div className="mb-6 max-w-md">
+      <div className="max-w-md">
         <Label className="mb-2 block">セミナーを選択</Label>
         <Select value={selectedId} onValueChange={setSelectedId}>
           <SelectTrigger>
@@ -256,111 +273,117 @@ function SurveyQuestionsContent() {
       </div>
 
       {!selectedId && (
-        <p className="text-muted-foreground">
-          セミナーを選択すると、事前・事後アンケートの設問を編集できます。
+        <p className="text-sm text-muted-foreground">
+          セミナーを選択すると、事前アンケート・事後アンケートの設問を編集できます。
         </p>
       )}
 
       {selectedId && (
-        <div className="space-y-8">
-          {/* 事前アンケート：背景色で明示 */}
-          <section
-            className="rounded-xl border-2 border-sky-200 bg-sky-50/80 dark:bg-sky-950/30 dark:border-sky-800 p-4 md:p-6"
-            aria-label="事前アンケート"
-          >
-            <div className="mb-3 flex items-center gap-2">
-              <span className="rounded-full bg-sky-500 px-3 py-1 text-sm font-bold text-white">
-                事前アンケート
-              </span>
-              <span className="text-sm text-muted-foreground">セミナー参加前に回答する設問</span>
-            </div>
-            <Card className="border border-sky-200 bg-card dark:border-sky-800">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-foreground">事前アンケート設問</CardTitle>
-              <div className="flex gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={addPre}>
-                  <Plus className="mr-1 h-4 w-4" />
-                  設問を追加
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={savePre}
-                  disabled={savingPre || preQuestions.length === 0}
-                >
-                  {savingPre ? "保存中..." : "保存する"}
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {preQuestions.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  設問がありません。「設問を追加」から追加してください。
-                </p>
-              ) : (
-                preQuestions.map((q, index) => (
-                  <QuestionEditor
-                    key={`pre-${index}`}
-                    question={q}
-                    index={index}
-                    onChange={(patch) => updatePre(index, patch)}
-                    onRemove={() => removePre(index)}
-                  />
-                ))
-              )}
-            </CardContent>
-          </Card>
-          </section>
+        <Tabs
+          defaultValue={
+            searchParams.get("type") === "post" ? "post" : "pre"
+          }
+          className="space-y-4"
+        >
+          <TabsList>
+            <TabsTrigger value="pre">事前アンケート</TabsTrigger>
+            <TabsTrigger value="post">事後アンケート</TabsTrigger>
+          </TabsList>
 
-          {/* 事後アンケート：背景色で明示 */}
-          <section
-            className="rounded-xl border-2 border-amber-200 bg-amber-50/80 dark:bg-amber-950/30 dark:border-amber-800 p-4 md:p-6"
-            aria-label="事後アンケート"
-          >
-            <div className="mb-3 flex items-center gap-2">
-              <span className="rounded-full bg-amber-500 px-3 py-1 text-sm font-bold text-white">
-                事後アンケート
-              </span>
-              <span className="text-sm text-muted-foreground">セミナー参加後に回答する設問</span>
-            </div>
-            <Card className="border border-amber-200 bg-card dark:border-amber-800">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-foreground">事後アンケート設問</CardTitle>
-              <div className="flex gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={addPost}>
-                  <Plus className="mr-1 h-4 w-4" />
-                  設問を追加
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={savePost}
-                  disabled={savingPost || postQuestions.length === 0}
-                >
-                  {savingPost ? "保存中..." : "保存する"}
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {postQuestions.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  設問がありません。「設問を追加」から追加してください。
-                </p>
-              ) : (
-                postQuestions.map((q, index) => (
-                  <QuestionEditor
-                    key={`post-${index}`}
-                    question={q}
-                    index={index}
-                    onChange={(patch) => updatePost(index, patch)}
-                    onRemove={() => removePost(index)}
-                  />
-                ))
-              )}
-            </CardContent>
-          </Card>
-          </section>
-        </div>
+          <TabsContent value="pre" className="mt-4 space-y-4">
+            <section
+              className="rounded-xl border-2 border-sky-200 bg-sky-50/80 dark:bg-sky-950/30 dark:border-sky-800 p-4 md:p-6"
+              aria-label="事前アンケート"
+            >
+              <p className="mb-3 text-sm text-muted-foreground">
+                セミナー参加前に回答する設問です。
+              </p>
+              <Card className="border border-sky-200 bg-card dark:border-sky-800 shadow-sm">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className="text-foreground">事前アンケート設問</CardTitle>
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={addPre}>
+                      <Plus className="size-4" />
+                      設問を追加
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={savePre}
+                      disabled={savingPre || preQuestions.length === 0}
+                    >
+                      {savingPre ? "保存中..." : "保存する"}
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {preQuestions.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      設問がありません。「設問を追加」から追加してください。
+                    </p>
+                  ) : (
+                    preQuestions.map((q, index) => (
+                      <QuestionEditor
+                        key={`pre-${index}`}
+                        question={q}
+                        index={index}
+                        onChange={(patch) => updatePre(index, patch)}
+                        onRemove={() => removePre(index)}
+                      />
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            </section>
+          </TabsContent>
+
+          <TabsContent value="post" className="mt-4 space-y-4">
+            <section
+              className="rounded-xl border-2 border-amber-200 bg-amber-50/80 dark:bg-amber-950/30 dark:border-amber-800 p-4 md:p-6"
+              aria-label="事後アンケート"
+            >
+              <p className="mb-3 text-sm text-muted-foreground">
+                セミナー参加後に回答する設問です。
+              </p>
+              <Card className="border border-amber-200 bg-card dark:border-amber-800 shadow-sm">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className="text-foreground">事後アンケート設問</CardTitle>
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={addPost}>
+                      <Plus className="size-4" />
+                      設問を追加
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={savePost}
+                      disabled={savingPost || postQuestions.length === 0}
+                    >
+                      {savingPost ? "保存中..." : "保存する"}
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {postQuestions.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      設問がありません。「設問を追加」から追加してください。
+                    </p>
+                  ) : (
+                    postQuestions.map((q, index) => (
+                      <QuestionEditor
+                        key={`post-${index}`}
+                        question={q}
+                        index={index}
+                        onChange={(patch) => updatePost(index, patch)}
+                        onRemove={() => removePost(index)}
+                      />
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            </section>
+          </TabsContent>
+        </Tabs>
       )}
     </div>
   );
