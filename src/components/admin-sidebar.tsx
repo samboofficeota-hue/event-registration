@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/admin", label: "実施一覧", icon: "📊" },
-  { href: "/admin/seminars", label: "セミナー管理", icon: "📅" },
   { href: "/admin/reservations", label: "予約一覧", icon: "📋" },
   { href: "/admin/surveys", label: "アンケート結果", icon: "📝" },
 ];

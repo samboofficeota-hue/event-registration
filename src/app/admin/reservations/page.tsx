@@ -13,6 +13,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -21,7 +28,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { Seminar, Reservation } from "@/lib/types";
-import { ClipboardList, FileEdit } from "lucide-react";
+import { toast } from "sonner";
+import {
+  ClipboardList,
+  FileEdit,
+  Pencil,
+  ExternalLink,
+  Ban,
+  Plus,
+} from "lucide-react";
 
 type SeminarWithSurveyStatus = Seminar & {
   has_pre_survey?: boolean;
@@ -36,14 +51,21 @@ export default function AdminReservationsPage() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingRes, setLoadingRes] = useState(false);
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+
+  async function loadSeminars() {
+    try {
+      const res = await fetch("/api/seminars?with_survey_status=1");
+      const data = await res.json();
+      if (Array.isArray(data)) setSeminars(data);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    fetch("/api/seminars?with_survey_status=1")
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) setSeminars(data);
-      })
-      .finally(() => setLoading(false));
+    loadSeminars();
   }, []);
 
   useEffect(() => {
@@ -74,23 +96,67 @@ export default function AdminReservationsPage() {
   const statusLabel: Record<string, string> = {
     draft: "下書き",
     published: "公開中",
-    cancelled: "キャンセル",
+    cancelled: "キャンセル済",
     completed: "終了",
   };
 
+  async function handleStatusChange(id: string, newStatus: "draft" | "published") {
+    setUpdatingStatusId(id);
+    try {
+      const res = await fetch(`/api/seminars/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(
+        newStatus === "published" ? "公開しました" : "下書きにしました"
+      );
+      await loadSeminars();
+    } catch {
+      toast.error("ステータスの更新に失敗しました");
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  }
+
+  async function handleCancel(id: string) {
+    if (!confirm("このセミナーをキャンセルしますか？")) return;
+    setCancellingId(id);
+    try {
+      const res = await fetch(`/api/seminars/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      toast.success("セミナーをキャンセルしました");
+      setSelectedSeminarId((prev) => (prev === id ? null : prev));
+      await loadSeminars();
+    } catch {
+      toast.error("キャンセルに失敗しました");
+    } finally {
+      setCancellingId(null);
+    }
+  }
+
   if (loading) {
-    return <p className="text-muted-foreground">読み込み中...</p>;
+    return <p className="text-sm text-muted-foreground">読み込み中...</p>;
   }
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          予約一覧
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          各セミナーの内容・予約状況を確認し、アンケートはセミナーカードから作成・編集できます。
-        </p>
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            予約一覧
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            セミナーの作成・編集・公開、予約確認、アンケートの作成ができます。
+          </p>
+        </div>
+        <Link href="/admin/seminars/new" className="shrink-0">
+          <Button>
+            <Plus className="size-4" />
+            新規作成
+          </Button>
+        </Link>
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -149,40 +215,96 @@ export default function AdminReservationsPage() {
                   )}
                 </div>
               </CardContent>
-              <CardFooter className="flex flex-wrap gap-2 border-t border-border pt-4">
-                <Button
-                  type="button"
-                  variant={
-                    selectedSeminarId === s.id ? "default" : "outline"
-                  }
-                  size="sm"
-                  onClick={() =>
-                    setSelectedSeminarId(selectedSeminarId === s.id ? null : s.id)
-                  }
-                >
-                  <ClipboardList className="size-4" />
-                  予約一覧を見る
-                </Button>
-                {hasSheet && (
-                  <>
-                    <Button type="button" variant="outline" size="sm" asChild>
-                      <Link
-                        href={`/admin/survey-questions?seminarId=${s.id}&type=pre`}
+              <CardFooter className="flex flex-col gap-3 border-t border-border pt-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant={
+                      selectedSeminarId === s.id ? "default" : "outline"
+                    }
+                    size="sm"
+                    onClick={() =>
+                      setSelectedSeminarId(selectedSeminarId === s.id ? null : s.id)
+                    }
+                  >
+                    <ClipboardList className="size-4" />
+                    予約一覧を見る
+                  </Button>
+                  {hasSheet && (
+                    <>
+                      <Button type="button" variant="outline" size="sm" asChild>
+                        <Link
+                          href={`/admin/survey-questions?seminarId=${s.id}&type=pre`}
+                        >
+                          <FileEdit className="size-4" />
+                          事前アンケート
+                        </Link>
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" asChild>
+                        <Link
+                          href={`/admin/survey-questions?seminarId=${s.id}&type=post`}
+                        >
+                          <FileEdit className="size-4" />
+                          事後アンケート
+                        </Link>
+                      </Button>
+                    </>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={`/admin/seminars/${s.id}/edit`}>
+                      <Pencil className="size-4" />
+                      編集
+                    </Link>
+                  </Button>
+                  {s.status !== "cancelled" &&
+                    (s.status === "draft" || s.status === "published" ? (
+                      <Select
+                        value={s.status}
+                        onValueChange={(v) =>
+                          handleStatusChange(s.id, v as "draft" | "published")
+                        }
+                        disabled={updatingStatusId === s.id}
                       >
-                        <FileEdit className="size-4" />
-                        事前アンケート
-                      </Link>
+                        <SelectTrigger size="sm" className="w-[120px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="draft">下書き</SelectItem>
+                          <SelectItem value="published">公開中</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">
+                        {statusLabel[s.status] ?? s.status}
+                      </span>
+                    ))}
+                  {hasSheet && (
+                    <a
+                      href={`https://docs.google.com/spreadsheets/d/${s.spreadsheet_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Button variant="outline" size="sm">
+                        <ExternalLink className="size-4" />
+                        スプシ
+                      </Button>
+                    </a>
+                  )}
+                  {s.status !== "cancelled" &&
+                    s.status !== "completed" && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleCancel(s.id)}
+                      disabled={cancellingId === s.id}
+                    >
+                      <Ban className="size-4" />
+                      {cancellingId === s.id ? "処理中..." : "キャンセル"}
                     </Button>
-                    <Button type="button" variant="outline" size="sm" asChild>
-                      <Link
-                        href={`/admin/survey-questions?seminarId=${s.id}&type=post`}
-                      >
-                        <FileEdit className="size-4" />
-                        事後アンケート
-                      </Link>
-                    </Button>
-                  </>
-                )}
+                  )}
+                </div>
               </CardFooter>
             </Card>
           );
