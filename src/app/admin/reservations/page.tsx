@@ -91,7 +91,13 @@ export default function AdminReservationsPage() {
     try {
       const res = await fetch("/api/seminars?with_survey_status=1");
       const data = await res.json();
-      if (Array.isArray(data)) setSeminars(data);
+      if (Array.isArray(data)) {
+        // 日付の近い順（昇順＝直近の日付が先）
+        const sorted = [...data].sort(
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+        );
+        setSeminars(sorted);
+      }
     } finally {
       setLoading(false);
     }
@@ -203,14 +209,16 @@ export default function AdminReservationsPage() {
           return (
             <Card
               key={s.id}
-              className="group flex h-full flex-col overflow-hidden border border-border bg-card shadow-sm transition-shadow hover:shadow-md"
+              className={`group flex h-full flex-col overflow-hidden border border-border shadow-sm transition-shadow hover:shadow-md ${
+                s.status === "cancelled" ? "bg-muted" : "bg-card"
+              }`}
             >
               {/* 画像エリア（フロントの seminar-card と同様 16:9） */}
-              <div className="relative w-full aspect-[16/9] overflow-hidden bg-white">
+              <div className="relative w-full flex-shrink-0 overflow-hidden bg-muted" style={{ aspectRatio: "16/9" }}>
                 <img
                   src={resolveImageUrl(s.image_url)}
                   alt={s.title}
-                  className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
+                  className="absolute inset-0 size-full object-cover transition-transform duration-300 group-hover:scale-105"
                   onError={(e) => {
                     (e.target as HTMLImageElement).src = "/9553.png";
                   }}

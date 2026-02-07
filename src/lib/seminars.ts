@@ -65,8 +65,9 @@ export async function getPublishedSeminars(): Promise<Seminar[]> {
       .map(rowToSeminar)
       .filter((s) => s.status === "published");
 
+    // 日付の近い順（昇順＝直近の日付が先）
     seminars.sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     );
     return seminars;
   } catch {
