@@ -14,7 +14,8 @@
     "delete-data": "tsx scripts/delete-all-reservations.ts",
     "sync-images": "tsx scripts/sync-images-to-individual.ts",
     "move-to-master-folder": "tsx scripts/move-to-master-folder.ts",
-    "create-tenant-folders": "tsx scripts/create-tenant-folders.ts"
+    "create-tenant-folders": "tsx scripts/create-tenant-folders.ts",
+    "create-tenant-master": "tsx scripts/create-tenant-master.ts"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.16.0",

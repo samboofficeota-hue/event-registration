@@ -14,6 +14,8 @@ import { ja } from "date-fns/locale";
 interface SeminarDetailModalProps {
   seminar: Seminar | null;
   onClose: () => void;
+  /** テナント用のベースパス（例: /whgc-seminars）。未指定時は /seminars */
+  basePath?: string;
 }
 
 /** Google Drive ファイルURLを直接画像URLに変換 */
@@ -57,7 +59,11 @@ const formatColors: Record<string, string> = {
   hybrid: "bg-pink-500 text-white",
 };
 
-export function SeminarDetailModal({ seminar, onClose }: SeminarDetailModalProps) {
+export function SeminarDetailModal({
+  seminar,
+  onClose,
+  basePath = "/seminars",
+}: SeminarDetailModalProps) {
   const [isClosing, setIsClosing] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -237,7 +243,7 @@ export function SeminarDetailModal({ seminar, onClose }: SeminarDetailModalProps
                     </div>
 
                     {!isFull && !isPast ? (
-                      <a href={`/seminars/${seminar.id}/booking`} className="block">
+                      <a href={`${basePath}/${seminar.id}/booking`} className="block">
                         <Button
                           size="lg"
                           className="w-full text-white rounded-xl h-14 text-lg font-semibold"

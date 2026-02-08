@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getTenantAdminPassword, isTenantKey } from "@/lib/tenant-config";
 
 function base64UrlEncode(data: Uint8Array): string {
   let binary = "";
@@ -8,18 +9,16 @@ function base64UrlEncode(data: Uint8Array): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-async function createToken(secret: string): Promise<string> {
+async function createToken(secret: string, tenant?: string): Promise<string> {
   const encoder = new TextEncoder();
   const header = base64UrlEncode(encoder.encode(JSON.stringify({ alg: "HS256", typ: "JWT" })));
-  const payload = base64UrlEncode(
-    encoder.encode(
-      JSON.stringify({
-        role: "admin",
-        iat: Math.floor(Date.now() / 1000),
-        exp: Math.floor(Date.now() / 1000) + 86400, // 24 hours
-      })
-    )
-  );
+  const payloadObj: { role: string; tenant?: string; iat: number; exp: number } = {
+    role: "admin",
+    iat: Math.floor(Date.now() / 1000),
+    exp: Math.floor(Date.now() / 1000) + 86400, // 24 hours
+  };
+  if (tenant) payloadObj.tenant = tenant;
+  const payload = base64UrlEncode(encoder.encode(JSON.stringify(payloadObj)));
 
   const key = await crypto.subtle.importKey(
     "raw",
@@ -37,21 +36,38 @@ async function createToken(secret: string): Promise<string> {
 
 export async function POST(request: NextRequest) {
   try {
-    const { password } = await request.json();
-    const adminPassword = process.env.ADMIN_PASSWORD;
+    const { password, tenant } = await request.json();
     const jwtSecret = process.env.ADMIN_JWT_SECRET;
 
-    if (!adminPassword || !jwtSecret) {
+    if (!jwtSecret) {
       return NextResponse.json({ error: "サーバー設定エラー" }, { status: 500 });
     }
 
-    if (password !== adminPassword) {
+    let valid = false;
+    let resolvedTenant: string | undefined;
+
+    if (tenant && isTenantKey(tenant)) {
+      const tenantPassword = getTenantAdminPassword(tenant);
+      if (tenantPassword && password === tenantPassword) {
+        valid = true;
+        resolvedTenant = tenant;
+      }
+    }
+
+    if (!valid) {
+      const adminPassword = process.env.ADMIN_PASSWORD;
+      if (adminPassword && password === adminPassword) {
+        valid = true;
+      }
+    }
+
+    if (!valid) {
       return NextResponse.json({ error: "パスワードが正しくありません" }, { status: 401 });
     }
 
-    const token = await createToken(jwtSecret);
+    const token = await createToken(jwtSecret, resolvedTenant);
 
-    const response = NextResponse.json({ success: true });
+    const response = NextResponse.json({ success: true, tenant: resolvedTenant });
     response.cookies.set("admin_token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

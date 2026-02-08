@@ -15,6 +15,8 @@ import type { Seminar } from "@/lib/types";
 
 interface SeminarListClientProps {
   seminars: Seminar[];
+  /** テナント用のベースパス（例: /whgc-seminars）。未指定時は /seminars */
+  basePath?: string;
 }
 
 /** フィルタカテゴリ定義 */
@@ -31,7 +33,10 @@ const targetCategories = [
   { key: "members_only", label: "会員限定" },
 ];
 
-export function SeminarListClient({ seminars }: SeminarListClientProps) {
+export function SeminarListClient({
+  seminars,
+  basePath = "/seminars",
+}: SeminarListClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
@@ -61,8 +66,8 @@ export function SeminarListClient({ seminars }: SeminarListClientProps) {
 
   const handleCloseModal = useCallback(() => {
     setSelectedSeminar(null);
-    if (searchParams.get("id")) router.replace("/seminars");
-  }, [searchParams, router]);
+    if (searchParams.get("id")) router.replace(basePath);
+  }, [searchParams, router, basePath]);
 
   const filteredSeminars = useMemo(() => {
     return seminars.filter((s) => {
@@ -248,6 +253,7 @@ export function SeminarListClient({ seminars }: SeminarListClientProps) {
       <SeminarDetailModal
         seminar={selectedSeminar}
         onClose={handleCloseModal}
+        basePath={basePath}
       />
     </>
   );
