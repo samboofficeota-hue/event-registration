@@ -561,6 +561,128 @@ export async function createSeminarSpreadsheet(
 }
 
 // ---------------------------------------------------------------------------
+// テナント用マスタースプレッドシートの新規作成
+// ---------------------------------------------------------------------------
+
+/** マスター「セミナー一覧」シートのヘッダー（20列。rowToSeminar と一致） */
+const MASTER_SEMINAR_LIST_HEADER = [
+  "ID",
+  "タイトル",
+  "説明",
+  "開催日時",
+  "所要時間(分)",
+  "定員",
+  "現在の予約数",
+  "登壇者",
+  "Meet URL",
+  "Calendar Event ID",
+  "ステータス",
+  "スプレッドシートID",
+  "肩書き",
+  "開催形式",
+  "対象",
+  "招待コード",
+  "画像URL",
+  "作成日時",
+  "更新日時",
+  "参考URL",
+];
+
+/**
+ * テナント用の予約管理マスターを新規作成する。
+ * シート: セミナー一覧・会員企業ドメイン・予約番号インデックス。各ヘッダー行のみ書き込む。
+ * @param tenantKey テナントキー（例: whgc-seminars）。ファイル名に使用
+ * @param driveFolderId 配置先の Drive フォルダID。未指定ならルートに作成
+ * @returns 作成したスプレッドシートのID
+ */
+export async function createTenantMasterSpreadsheet(
+  tenantKey: string,
+  driveFolderId?: string
+): Promise<string> {
+  const token = await getAccessToken();
+  const title = `予約管理マスター（${tenantKey}）`;
+
+  const createRes = await fetch(SHEETS_API, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      properties: { title },
+      sheets: [
+        { properties: { title: "セミナー一覧", index: 0 } },
+        { properties: { title: MEMBER_DOMAINS_SHEET_NAME, index: 1 } },
+        { properties: { title: RESERVATION_INDEX_SHEET_NAME, index: 2 } },
+      ],
+    }),
+  });
+
+  if (!createRes.ok) {
+    const error = await createRes.text();
+    throw new Error(`テナント用マスターの作成に失敗しました: ${error}`);
+  }
+
+  const spreadsheet = await createRes.json();
+  const spreadsheetId: string = spreadsheet.spreadsheetId;
+
+  const batchRes = await fetch(
+    `${SHEETS_API}/${spreadsheetId}/values:batchUpdate`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        valueInputOption: "USER_ENTERED",
+        data: [
+          {
+            range: "セミナー一覧!A1:T1",
+            values: [MASTER_SEMINAR_LIST_HEADER],
+          },
+          {
+            range: `${MEMBER_DOMAINS_SHEET_NAME}!A1:B1`,
+            values: [MEMBER_DOMAINS_HEADER],
+          },
+          {
+            range: `${RESERVATION_INDEX_SHEET_NAME}!A1:C1`,
+            values: [RESERVATION_INDEX_HEADER],
+          },
+        ],
+      }),
+    }
+  );
+
+  if (!batchRes.ok) {
+    const error = await batchRes.text();
+    throw new Error(`ヘッダーの書き込みに失敗しました: ${error}`);
+  }
+
+  if (driveFolderId) {
+    try {
+      const fileRes = await fetch(
+        `${DRIVE_API}/${spreadsheetId}?fields=parents`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const fileData = await fileRes.json();
+      const previousParents = (fileData.parents || []).join(",");
+      await fetch(
+        `${DRIVE_API}/${spreadsheetId}?addParents=${driveFolderId}&removeParents=${previousParents}`,
+        {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+    } catch (err) {
+      console.error("Failed to move spreadsheet to folder:", err);
+    }
+  }
+
+  return spreadsheetId;
+}
+
+// ---------------------------------------------------------------------------
 // Google Drive: セミナー画像アップロード
 // ---------------------------------------------------------------------------
 

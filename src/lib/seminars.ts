@@ -1,4 +1,5 @@
-import { getMasterData, findMasterRowById } from "@/lib/google/sheets";
+import { getMasterData, findMasterRowById, getSheetData } from "@/lib/google/sheets";
+import { getTenantConfig } from "@/lib/tenant-config";
 import type { Seminar } from "@/lib/types";
 
 // マスタースプレッドシート「セミナー一覧」シートの列順:
@@ -66,6 +67,35 @@ export async function getPublishedSeminars(): Promise<Seminar[]> {
       .filter((s) => s.status === "published");
 
     // 日付の近い順（昇順＝直近の日付が先）
+    seminars.sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+    return seminars;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 指定テナントのマスターから公開中のセミナー一覧を取得する。
+ * テナント未設定の場合は空配列を返す。
+ */
+export async function getPublishedSeminarsForTenant(
+  tenant: string
+): Promise<Seminar[]> {
+  const config = getTenantConfig(tenant);
+  if (!config) return [];
+  try {
+    const rows = await getSheetData(
+      config.masterSpreadsheetId,
+      "セミナー一覧"
+    );
+    const seminars = rows
+      .slice(1)
+      .filter((row) => row[0]?.trim())
+      .map(rowToSeminar)
+      .filter((s) => s.status === "published");
+
     seminars.sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     );
