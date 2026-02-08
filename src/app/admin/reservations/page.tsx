@@ -62,12 +62,9 @@ function resolveImageUrl(url: string | undefined): string {
   return "/9553.png";
 }
 
+/** duration_minutes を「○分」で表示（例: 90分） */
 function formatDuration(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h === 0) return `${m}分`;
-  if (m === 0) return `${h}時間`;
-  return `${h}時間${m}分`;
+  return `${minutes}分`;
 }
 
 const formatColors: Record<string, string> = {

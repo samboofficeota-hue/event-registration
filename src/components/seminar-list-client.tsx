@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Search, Grid, List } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -30,11 +32,21 @@ const targetCategories = [
 ];
 
 export function SeminarListClient({ seminars }: SeminarListClientProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFormat, setSelectedFormat] = useState("all");
   const [selectedTarget, setSelectedTarget] = useState("all");
   const [viewMode, setViewMode] = useState<"grid" | "calendar">("grid");
   const [selectedSeminar, setSelectedSeminar] = useState<Seminar | null>(null);
+
+  // クエリ ?id=xxx でセミナー詳細モーダルを開く（申し込みページから「セミナー詳細に戻る」用）
+  useEffect(() => {
+    const id = searchParams.get("id");
+    if (!id) return;
+    const seminar = seminars.find((s) => s.id === id);
+    if (seminar) setSelectedSeminar(seminar);
+  }, [searchParams, seminars]);
 
   useEffect(() => {
     if (selectedSeminar) {
@@ -49,7 +61,8 @@ export function SeminarListClient({ seminars }: SeminarListClientProps) {
 
   const handleCloseModal = useCallback(() => {
     setSelectedSeminar(null);
-  }, []);
+    if (searchParams.get("id")) router.replace("/seminars");
+  }, [searchParams, router]);
 
   const filteredSeminars = useMemo(() => {
     return seminars.filter((s) => {

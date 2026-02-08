@@ -303,6 +303,71 @@ export async function findMasterRowById(
 }
 
 // ---------------------------------------------------------------------------
+// 会員企業ドメイン（マスタースプレッドシート内シート「会員企業ドメイン」）
+// ---------------------------------------------------------------------------
+
+export const MEMBER_DOMAINS_SHEET_NAME = "会員企業ドメイン";
+const MEMBER_DOMAINS_HEADER = ["ドメイン", "作成日時"];
+
+/**
+ * 会員企業ドメイン用シートがなければ作成し、ヘッダー行を書き込む。
+ */
+export async function ensureMemberDomainsSheet(): Promise<void> {
+  const spreadsheetId = getMasterSpreadsheetId();
+  const titles = await getSpreadsheetSheetTitles(spreadsheetId);
+  if (titles.includes(MEMBER_DOMAINS_SHEET_NAME)) return;
+  await addSheet(spreadsheetId, MEMBER_DOMAINS_SHEET_NAME);
+  await setSheetValues(spreadsheetId, MEMBER_DOMAINS_SHEET_NAME, [
+    MEMBER_DOMAINS_HEADER,
+  ]);
+}
+
+/**
+ * 会員企業ドメイン一覧を取得する（@ より後ろの文字列のリスト）。
+ */
+export async function getMemberDomains(): Promise<string[]> {
+  await ensureMemberDomainsSheet();
+  const rows = await getSheetData(
+    getMasterSpreadsheetId(),
+    MEMBER_DOMAINS_SHEET_NAME
+  );
+  const domains: string[] = [];
+  for (let i = 1; i < rows.length; i++) {
+    const d = rows[i][0]?.trim();
+    if (d) domains.push(d);
+  }
+  return domains;
+}
+
+/**
+ * 会員企業ドメインを1件追加する。
+ */
+export async function addMemberDomain(domain: string): Promise<void> {
+  await ensureMemberDomainsSheet();
+  const d = domain.trim().toLowerCase();
+  if (!d) throw new Error("ドメインを入力してください");
+  await appendRow(getMasterSpreadsheetId(), MEMBER_DOMAINS_SHEET_NAME, [
+    d,
+    new Date().toISOString(),
+  ]);
+}
+
+/**
+ * 会員企業ドメインを1件削除する（大文字小文字は区別しない）。
+ */
+export async function removeMemberDomain(domain: string): Promise<void> {
+  await ensureMemberDomainsSheet();
+  const spreadsheetId = getMasterSpreadsheetId();
+  const rows = await getSheetData(spreadsheetId, MEMBER_DOMAINS_SHEET_NAME);
+  const target = domain.trim().toLowerCase();
+  const newRows = [
+    MEMBER_DOMAINS_HEADER,
+    ...rows.slice(1).filter((row) => row[0]?.trim().toLowerCase() !== target),
+  ];
+  await setSheetValues(spreadsheetId, MEMBER_DOMAINS_SHEET_NAME, newRows);
+}
+
+// ---------------------------------------------------------------------------
 // セミナー専用スプレッドシートの自動作成
 // ---------------------------------------------------------------------------
 
