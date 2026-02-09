@@ -27,8 +27,8 @@ const QUESTION_TYPES: { value: SurveyQuestion["type"]; label: string }[] = [
   { value: "nps", label: "NPS（0〜10）" },
 ];
 
-const emptyQuestion = (): SurveyQuestion => ({
-  id: "",
+const emptyQuestion = (index: number): SurveyQuestion => ({
+  id: `q${index + 1}`,
   label: "",
   type: "text",
   required: false,
@@ -115,11 +115,11 @@ function SurveyQuestionsContent() {
   }
 
   function addPre() {
-    setPreQuestions((prev) => [...prev, emptyQuestion()]);
+    setPreQuestions((prev) => [...prev, emptyQuestion(prev.length)]);
   }
 
   function addPost() {
-    setPostQuestions((prev) => [...prev, emptyQuestion()]);
+    setPostQuestions((prev) => [...prev, emptyQuestion(prev.length)]);
   }
 
   function removePre(index: number) {
@@ -255,18 +255,18 @@ function SurveyQuestionsContent() {
           </p>
         )}
         {selectedId && (
-          <div className="mt-3">
+          <div className="mt-4 rounded-lg border-2 border-dashed border-primary/50 bg-primary/5 p-4">
             <Button
               type="button"
-              variant="outline"
               onClick={ensureSheets}
               disabled={ensuringSheets}
+              className="w-full bg-primary text-primary-foreground hover:bg-primary/90 h-11 text-base font-semibold"
             >
-              <Sheet className="mr-2 h-4 w-4" />
+              <Sheet className="mr-2 h-5 w-5" />
               {ensuringSheets ? "追加中..." : "アンケートシートを追加"}
             </Button>
-            <p className="mt-1 text-xs text-muted-foreground">
-              既存のセミナー用スプレッドシートに「事前アンケート設問」「事後アンケート設問」シートがない場合に押してください。既にある場合は何もしません。
+            <p className="mt-2 text-xs text-muted-foreground text-center">
+              初回は必ずこのボタンを押してアンケートシートを作成してください。既にある場合は何もしません。
             </p>
           </div>
         )}
@@ -408,13 +408,16 @@ function QuestionEditor({
   onChange: (patch: Partial<SurveyQuestion>) => void;
   onRemove: () => void;
 }) {
-  const optionsStr = (question.options || []).join(", ");
+  const optionsStr = (question.options || []).join("\n");
 
   return (
     <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-muted-foreground">
           設問 {index + 1}
+          <span className="ml-2 text-xs font-mono text-muted-foreground/60">
+            (ID: {question.id})
+          </span>
         </span>
         <Button
           type="button"
@@ -426,33 +429,23 @@ function QuestionEditor({
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1">
-          <Label>設問ID</Label>
-          <Input
-            value={question.id}
-            onChange={(e) => onChange({ id: e.target.value })}
-            placeholder="例: q1_interest_level"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label>タイプ</Label>
-          <Select
-            value={question.type}
-            onValueChange={(v) => onChange({ type: v as SurveyQuestion["type"] })}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {QUESTION_TYPES.map((t) => (
-                <SelectItem key={t.value} value={t.value}>
-                  {t.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      <div className="space-y-1">
+        <Label>タイプ</Label>
+        <Select
+          value={question.type}
+          onValueChange={(v) => onChange({ type: v as SurveyQuestion["type"] })}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {QUESTION_TYPES.map((t) => (
+              <SelectItem key={t.value} value={t.value}>
+                {t.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <div className="space-y-1">
         <Label>質問文（ラベル）</Label>
@@ -512,18 +505,19 @@ function QuestionEditor({
       )}
       {question.type === "select" && (
         <div className="space-y-1">
-          <Label>選択肢（カンマ区切り）</Label>
-          <Input
+          <Label>選択肢（1行に1つずつ入力）</Label>
+          <Textarea
             value={optionsStr}
             onChange={(e) =>
               onChange({
                 options: e.target.value
-                  .split(",")
+                  .split("\n")
                   .map((s) => s.trim())
                   .filter(Boolean),
               })
             }
-            placeholder="例: 初めて, 1年未満, 3年以上"
+            rows={4}
+            placeholder={"初めて\n1年未満\n3年以上"}
           />
         </div>
       )}
