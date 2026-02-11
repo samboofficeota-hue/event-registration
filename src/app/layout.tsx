@@ -11,6 +11,7 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  preload: false, // 予約番号など一部でしか使わないためプリロードしない（未使用プリロード警告を防ぐ）
 });
 
 export const metadata: Metadata = {

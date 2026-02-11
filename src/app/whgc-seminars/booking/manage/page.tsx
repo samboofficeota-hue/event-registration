@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -245,7 +246,10 @@ export default function WhgcBookingManagePage() {
 
       {/* 変更・キャンセルモーダル */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto" aria-describedby="whgc-manage-booking-desc">
+          <DialogDescription id="whgc-manage-booking-desc" className="sr-only">
+            予約の詳細を表示し、内容の変更やキャンセルができます
+          </DialogDescription>
           {loadingModal && !seminar ? (
             <div className="py-8 text-center text-muted-foreground">読み込み中...</div>
           ) : cancelled ? (
