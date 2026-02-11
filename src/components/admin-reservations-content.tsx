@@ -304,33 +304,13 @@ export function AdminReservationsContent({
                   </div>
                 </div>
 
-                <div className="mb-4 flex flex-wrap gap-2">
-                  {s.target === "members_only" && (
+                {s.target === "members_only" && (
+                  <div className="mb-4">
                     <Badge variant="secondary" className="text-xs">
                       会員限定
                     </Badge>
-                  )}
-                  {hasSheet ? (
-                    <>
-                      <Badge
-                        variant={hasPre ? "default" : "secondary"}
-                        className={hasPre ? "text-xs" : "text-xs text-muted-foreground"}
-                      >
-                        事前 {hasPre ? "作成済" : "未作成"}
-                      </Badge>
-                      <Badge
-                        variant={hasPost ? "default" : "secondary"}
-                        className={hasPost ? "text-xs" : "text-xs text-muted-foreground"}
-                      >
-                        事後 {hasPost ? "作成済" : "未作成"}
-                      </Badge>
-                    </>
-                  ) : (
-                    <Badge variant="outline" className="text-xs">
-                      シート未作成
-                    </Badge>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 <div className="mt-auto flex items-center justify-between border-t border-border pt-4">
                   <div className="text-[0.8125rem] text-muted-foreground">
@@ -357,7 +337,13 @@ export function AdminReservationsContent({
               <CardFooter className="flex flex-col gap-3 border-t border-border px-5 pb-5 pt-4">
                 {hasSheet && (
                   <div className="admin-card-footer w-full">
-                    <Button type="button" variant="outline" size="sm" className="gap-1.5 text-[0.8125rem]" asChild>
+                    <Button
+                      type="button"
+                      variant={hasPre ? "default" : "outline"}
+                      size="sm"
+                      className={`gap-1.5 text-[0.8125rem] ${hasPre ? "bg-sky-600 hover:bg-sky-700 text-white" : "text-muted-foreground"}`}
+                      asChild
+                    >
                       <Link
                         href={`${adminBase}/survey-questions?seminarId=${s.id}&type=pre`}
                       >
@@ -365,7 +351,13 @@ export function AdminReservationsContent({
                         事前アンケート
                       </Link>
                     </Button>
-                    <Button type="button" variant="outline" size="sm" className="gap-1.5 text-[0.8125rem]" asChild>
+                    <Button
+                      type="button"
+                      variant={hasPost ? "default" : "outline"}
+                      size="sm"
+                      className={`gap-1.5 text-[0.8125rem] ${hasPost ? "bg-amber-600 hover:bg-amber-700 text-white" : "text-muted-foreground"}`}
+                      asChild
+                    >
                       <Link
                         href={`${adminBase}/survey-questions?seminarId=${s.id}&type=post`}
                       >

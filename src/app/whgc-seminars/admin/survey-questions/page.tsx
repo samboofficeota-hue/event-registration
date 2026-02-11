@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -49,9 +48,10 @@ function SurveyQuestionsContent() {
   const [savingPre, setSavingPre] = useState(false);
   const [savingPost, setSavingPost] = useState(false);
   const [ensuringSheets, setEnsuringSheets] = useState(false);
+  const [sheetsExist, setSheetsExist] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/seminars?tenant=${TENANT}`)
+    fetch(`/api/seminars?tenant=${TENANT}&with_survey_status=1`)
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) setSeminars(data);
@@ -78,6 +78,20 @@ function SurveyQuestionsContent() {
   }, [loading, seminars.length, seminarIdFromUrl, selectedId, router]);
 
   const seminarsWithSheet = seminars.filter((s) => s.spreadsheet_id);
+
+  // セミナー選択時にシートの存在を確認
+  useEffect(() => {
+    if (!selectedId) {
+      setSheetsExist(false);
+      return;
+    }
+    const sem = seminars.find((s) => s.id === selectedId) as (Seminar & { has_pre_survey?: boolean; has_post_survey?: boolean }) | undefined;
+    if (sem && (sem.has_pre_survey || sem.has_post_survey)) {
+      setSheetsExist(true);
+    } else {
+      setSheetsExist(false);
+    }
+  }, [selectedId, seminars]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -142,6 +156,7 @@ function SurveyQuestionsContent() {
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "追加に失敗しました");
+      setSheetsExist(true);
       if (data.addedPre || data.addedPost) {
         toast.success(data.message);
         Promise.all([
@@ -256,7 +271,7 @@ function SurveyQuestionsContent() {
             スプレッドシートが紐づいたセミナーがありません。セミナー管理でセミナーを作成すると、ここでアンケート設問を編集できます。
           </p>
         )}
-        {selectedId && (
+        {selectedId && !sheetsExist && (
           <div className="mt-4 rounded-lg border-2 border-dashed border-primary/50 bg-primary/5 p-4">
             <Button
               type="button"
@@ -268,7 +283,7 @@ function SurveyQuestionsContent() {
               {ensuringSheets ? "追加中..." : "アンケートシートを追加"}
             </Button>
             <p className="mt-2 text-xs text-muted-foreground text-center">
-              初回は必ずこのボタンを押してアンケートシートを作成してください。既にある場合は何もしません。
+              初回は必ずこのボタンを押してアンケートシートを作成してください。
             </p>
           </div>
         )}
@@ -410,7 +425,7 @@ function QuestionEditor({
   onChange: (patch: Partial<SurveyQuestion>) => void;
   onRemove: () => void;
 }) {
-  const optionsStr = (question.options || []).join("\n");
+  const optionsStr = (question.options || []).join(", ");
 
   return (
     <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
@@ -507,19 +522,18 @@ function QuestionEditor({
       )}
       {question.type === "select" && (
         <div className="space-y-1">
-          <Label>選択肢（1行に1つずつ入力）</Label>
-          <Textarea
+          <Label>選択肢（カンマ区切りで入力）</Label>
+          <Input
             value={optionsStr}
             onChange={(e) =>
               onChange({
                 options: e.target.value
-                  .split("\n")
+                  .split(",")
                   .map((s) => s.trim())
                   .filter(Boolean),
               })
             }
-            rows={4}
-            placeholder={"初めて\n1年未満\n3年以上"}
+            placeholder="初めて, 1年未満, 3年以上"
           />
         </div>
       )}
