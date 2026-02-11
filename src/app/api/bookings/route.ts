@@ -16,6 +16,7 @@ import { rowToSeminar } from "@/lib/seminars";
 import { isMemberDomainEmail } from "@/lib/member-domains";
 import { generateReservationNumber } from "@/lib/reservation-number";
 import { getTenantConfig, isTenantKey } from "@/lib/tenant-config";
+import { getSurveyQuestions } from "@/lib/survey/storage";
 
 export async function POST(request: NextRequest) {
   try {
@@ -108,6 +109,17 @@ export async function POST(request: NextRequest) {
     };
     const calendarAddUrl = buildCalendarAddUrl();
 
+    // 事前アンケートの存在確認
+    let hasPreSurvey = false;
+    if (seminar.spreadsheet_id) {
+      try {
+        const preQuestions = await getSurveyQuestions(seminar.spreadsheet_id, "pre");
+        hasPreSurvey = Array.isArray(preQuestions) && preQuestions.length > 0;
+      } catch {
+        hasPreSurvey = false;
+      }
+    }
+
     if (duplicate) {
       const existingId = duplicate[0];
       const existingNumber = duplicate[11] || "";
@@ -127,6 +139,7 @@ export async function POST(request: NextRequest) {
             meetUrl: seminar.meet_url || undefined,
             calendarAddUrl: calendarAddUrl || undefined,
             topMessage: "すでに次の内容で登録されています。変更する場合は、メール内の変更・キャンセルリンクからお手続きください。",
+            hasPreSurvey,
           },
           tenantKey
         );
@@ -211,6 +224,7 @@ export async function POST(request: NextRequest) {
           manageUrl,
           meetUrl: seminar.meet_url || undefined,
           calendarAddUrl: calendarAddUrl || undefined,
+          hasPreSurvey,
         },
         tenantKey
       );

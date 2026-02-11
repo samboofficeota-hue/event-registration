@@ -35,6 +35,8 @@ export interface ReservationConfirmationData {
   calendarAddUrl?: string;
   /** 重複申込時など、メール先頭に追加する注釈文 */
   topMessage?: string;
+  /** 事前アンケートが作成済みか（falseの場合、アンケートセクションを非表示） */
+  hasPreSurvey?: boolean;
 }
 
 /**
@@ -58,6 +60,7 @@ export async function sendReservationConfirmation(
     meetUrl,
     calendarAddUrl,
     topMessage,
+    hasPreSurvey,
   } = data;
   const displayNumber = reservationNumber || reservationId;
 
@@ -78,15 +81,21 @@ export async function sendReservationConfirmation(
       meetUrl,
       calendarAddUrl,
       topMessage,
+      hasPreSurvey: hasPreSurvey ?? true,
     },
     options
   );
+
+  // テナント別の件名
+  const subject = tenant === "whgc-seminars"
+    ? "WHGC ｜参加登録を受け付けました"
+    : `【${seminarTitle}】予約完了のお知らせ`;
 
   try {
     await getResend().emails.send({
       from: `${config.fromName} <${config.fromEmail}>`,
       to,
-      subject: `【${seminarTitle}】予約完了のお知らせ`,
+      subject,
       html,
     });
 

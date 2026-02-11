@@ -15,6 +15,8 @@ export interface ReservationConfirmationTemplateData {
   meetUrl?: string;
   calendarAddUrl?: string;
   topMessage?: string;
+  /** 事前アンケートが作成済みか（falseの場合、アンケートセクションを非表示） */
+  hasPreSurvey?: boolean;
 }
 
 /** キャンセル通知メール用データ */

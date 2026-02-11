@@ -17,6 +17,7 @@ export function render(
     meetUrl,
     calendarAddUrl,
     topMessage,
+    hasPreSurvey = true,
   } = data;
   const { contactEmail } = options;
 
@@ -74,13 +75,15 @@ export function render(
     <a href="${calendarAddUrl}" style="display: inline-block; background-color: #0f766e; color: #ffffff; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-weight: bold; margin-bottom: 20px;">カレンダーに登録</a>
     ` : ""}
 
-    <p style="margin: 20px 0 10px 0; font-size: 14px;">以下の予約番号と、下記の変更・キャンセルリンクから、内容の変更やキャンセルができます。</p>
-    <p style="margin: 0 0 15px 0; font-size: 14px; color: #6b7280;">予約番号: <strong>${displayNumber}</strong>（上記の予約番号をご入力ください）</p>
+    <p style="margin: 20px 0 5px 0; font-size: 14px;">お申込み内容の変更やキャンセルは次のボタンをクリックしてください。</p>
+    <p style="margin: 0 0 10px 0; font-size: 14px;">変更やキャンセルには、次の予約番号が必要となります。</p>
+    <p style="margin: 0 0 15px 0; font-size: 14px;">予約番号: <strong style="font-size: 18px; font-family: monospace; letter-spacing: 1px;">${displayNumber}</strong></p>
     <a href="${manageUrl}"
        style="display: inline-block; background-color: #6b7280; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; margin-bottom: 20px;">
       変更・キャンセル
     </a>
 
+    ${hasPreSurvey ? `
     <div style="background-color: #eff6ff; border-left: 4px solid #2563eb; padding: 15px; margin: 25px 0; border-radius: 4px;">
       <p style="margin: 0 0 10px 0; font-weight: bold; color: #1e40af;">📋 事前アンケートのお願い</p>
       <p style="margin: 0 0 15px 0; font-size: 14px;">
@@ -91,6 +94,7 @@ export function render(
         事前アンケートに回答する
       </a>
     </div>
+    ` : ""}
   </div>
 
   <div style="background-color: #f9fafb; border-radius: 8px; padding: 20px; font-size: 14px; color: #6b7280;">
