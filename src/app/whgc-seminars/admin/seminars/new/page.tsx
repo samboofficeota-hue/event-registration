@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import { ImagePlus } from "lucide-react";
 
 const TENANT = "whgc-seminars";
 const ADMIN_BASE = "/whgc-seminars/admin";
@@ -63,8 +64,9 @@ export default function WhgcSeminarsNewSeminarPage() {
         throw new Error(err.error || "作成に失敗しました");
       }
 
-      toast.success("セミナーを作成しました");
-      router.push(`${ADMIN_BASE}/seminars`);
+      const created = await res.json();
+      toast.success("セミナーを作成しました。続けて画像を登録できます。");
+      router.push(`${ADMIN_BASE}/seminars/${created.id}/image`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "作成に失敗しました");
     } finally {
@@ -76,7 +78,7 @@ export default function WhgcSeminarsNewSeminarPage() {
     <div className="mx-auto max-w-2xl">
       <h1 className="mb-6 text-2xl font-bold text-foreground">セミナー新規作成</h1>
 
-      <Card className="border border-border bg-card">
+      <Card className="admin-card">
         <CardHeader>
           <CardTitle className="text-foreground">セミナー情報</CardTitle>
         </CardHeader>
@@ -207,6 +209,21 @@ export default function WhgcSeminarsNewSeminarPage() {
               />
             </div>
 
+            {/* 画像登録案内 */}
+            <div className="rounded-lg border border-dashed border-border bg-muted/30 p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+                  <ImagePlus className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">セミナー画像</p>
+                  <p className="text-xs text-muted-foreground">
+                    セミナー作成後、画像登録ページへ移動します。
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label>ステータス</Label>
               <Select value={status} onValueChange={setStatus}>
@@ -220,13 +237,14 @@ export default function WhgcSeminarsNewSeminarPage() {
               </Select>
             </div>
 
-            <div className="flex gap-2">
-              <Button type="submit" disabled={loading}>
+            <div className="flex gap-3 pt-2">
+              <Button type="submit" size="lg" disabled={loading} className="px-8">
                 {loading ? "作成中..." : "作成する"}
               </Button>
               <Button
                 type="button"
                 variant="outline"
+                size="lg"
                 onClick={() => router.back()}
               >
                 キャンセル

@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   findReservationByNumber,
+  findReservationByNumberForTenant,
   getSheetData,
   getMasterData,
   getMasterDataForTenant,
 } from "@/lib/google/sheets";
 import { rowToSeminar } from "@/lib/seminars";
 import { isValidReservationNumberFormat } from "@/lib/reservation-number";
-import { isTenantKey } from "@/lib/tenant-config";
+import { isTenantKey, getTenantConfig } from "@/lib/tenant-config";
 import type { Reservation } from "@/lib/types";
 
 function rowToReservation(row: string[]): Reservation {
@@ -52,7 +53,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const index = await findReservationByNumber(number);
+    const tenantConfig = tenantKey ? getTenantConfig(tenantKey) : null;
+    const index = tenantConfig
+      ? await findReservationByNumberForTenant(tenantConfig.masterSpreadsheetId, number)
+      : await findReservationByNumber(number);
     if (!index) {
       return NextResponse.json(
         { error: "予約番号が見つかりません" },

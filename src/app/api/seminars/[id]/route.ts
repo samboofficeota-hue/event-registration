@@ -6,6 +6,7 @@ import {
   updateMasterRowForTenant,
   findRowById,
   updateRow,
+  ensureSeminarSpreadsheetHeaders,
 } from "@/lib/google/sheets";
 import { updateCalendarEvent, deleteCalendarEvent } from "@/lib/google/calendar";
 import { rowToSeminar } from "@/lib/seminars";
@@ -105,6 +106,8 @@ export async function PUT(
     // 個別イベントスプレッドシートの「イベント情報」シートも更新
     if (current.spreadsheet_id) {
       try {
+        // ヘッダーを最新形式に自動修正
+        await ensureSeminarSpreadsheetHeaders(current.spreadsheet_id);
         const individualResult = await findRowById(current.spreadsheet_id, "イベント情報", id);
         if (individualResult) {
           await updateRow(current.spreadsheet_id, "イベント情報", individualResult.rowIndex, updated);
