@@ -88,10 +88,10 @@ function SurveyQuestionsContent() {
     setPreQuestions([]);
     setPostQuestions([]);
     Promise.all([
-      fetch(`/api/seminars/${selectedId}/survey-questions?type=pre`).then(
+      fetch(`/api/seminars/${selectedId}/survey-questions?type=pre&tenant=${TENANT}`).then(
         (r) => r.json()
       ),
-      fetch(`/api/seminars/${selectedId}/survey-questions?type=post`).then(
+      fetch(`/api/seminars/${selectedId}/survey-questions?type=post&tenant=${TENANT}`).then(
         (r) => r.json()
       ),
     ])
@@ -137,7 +137,7 @@ function SurveyQuestionsContent() {
     setEnsuringSheets(true);
     try {
       const res = await fetch(
-        `/api/seminars/${selectedId}/ensure-survey-sheets`,
+        `/api/seminars/${selectedId}/ensure-survey-sheets?tenant=${TENANT}`,
         { method: "POST" }
       );
       const data = await res.json();
@@ -145,10 +145,10 @@ function SurveyQuestionsContent() {
       if (data.addedPre || data.addedPost) {
         toast.success(data.message);
         Promise.all([
-          fetch(`/api/seminars/${selectedId}/survey-questions?type=pre`).then(
+          fetch(`/api/seminars/${selectedId}/survey-questions?type=pre&tenant=${TENANT}`).then(
             (r) => r.json()
           ),
-          fetch(`/api/seminars/${selectedId}/survey-questions?type=post`).then(
+          fetch(`/api/seminars/${selectedId}/survey-questions?type=post&tenant=${TENANT}`).then(
             (r) => r.json()
           ),
         ]).then(([preRes, postRes]) => {
@@ -170,11 +170,11 @@ function SurveyQuestionsContent() {
     setSavingPre(true);
     try {
       const res = await fetch(
-        `/api/seminars/${selectedId}/survey-questions`,
+        `/api/seminars/${selectedId}/survey-questions?tenant=${TENANT}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: "pre", questions: preQuestions }),
+          body: JSON.stringify({ type: "pre", questions: preQuestions, tenant: TENANT }),
         }
       );
       if (!res.ok) {
@@ -195,11 +195,11 @@ function SurveyQuestionsContent() {
     setSavingPost(true);
     try {
       const res = await fetch(
-        `/api/seminars/${selectedId}/survey-questions`,
+        `/api/seminars/${selectedId}/survey-questions?tenant=${TENANT}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: "post", questions: postQuestions }),
+          body: JSON.stringify({ type: "post", questions: postQuestions, tenant: TENANT }),
         }
       );
       if (!res.ok) {
