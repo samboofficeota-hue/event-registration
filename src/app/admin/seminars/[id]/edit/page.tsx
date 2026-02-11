@@ -18,7 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import type { Seminar } from "@/lib/types";
-import { ClipboardList, FileQuestion, Copy, Link2 } from "lucide-react";
+import { ClipboardList, FileQuestion, Copy, Link2, ImagePlus } from "lucide-react";
 
 /** アンケートURL1行（表示＋コピー） */
 function SurveyUrlRow({ label, path }: { label: string; path: string }) {
@@ -184,7 +184,7 @@ export default function EditSeminarPage({
     <div className="mx-auto max-w-2xl">
       <h1 className="mb-6 text-2xl font-bold text-foreground">セミナー編集</h1>
 
-      <Card className="border border-border bg-card">
+      <Card className="admin-card">
         <CardHeader>
           <CardTitle className="text-foreground">セミナー情報</CardTitle>
         </CardHeader>
@@ -211,31 +211,37 @@ export default function EditSeminarPage({
                 rows={6}
                 placeholder="改行はそのまま表示に反映されます。&lt;br&gt; でも改行できます。"
               />
+            </div>
 
-              {/* 画像サムネイル表示 */}
-              {seminar.image_url && (
-                <div className="mt-4">
-                  <Label className="text-sm text-muted-foreground">登録済み画像</Label>
-                  <div className="mt-2 rounded-lg border border-border overflow-hidden bg-card max-w-md">
-                    <img
-                      src={resolveImageUrl(seminar.image_url)}
-                      alt={seminar.title}
-                      className="w-full h-auto object-contain"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = "/9553.png";
-                      }}
-                    />
+            {/* 画像セクション */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">セミナー画像</Label>
+              {seminar.image_url ? (
+                <div className="rounded-lg border border-border overflow-hidden bg-muted/30 max-w-md">
+                  <img
+                    src={resolveImageUrl(seminar.image_url)}
+                    alt={seminar.title}
+                    className="w-full h-auto object-contain"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = "/9553.png";
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 rounded-lg border border-dashed border-border bg-muted/30 p-4 max-w-md">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+                    <ImagePlus className="h-5 w-5 text-muted-foreground" />
                   </div>
+                  <p className="text-sm text-muted-foreground">画像が未登録です</p>
                 </div>
               )}
-
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => router.push(`/admin/seminars/${id}/image`)}
               >
-                {seminar.image_url ? "画像を変更" : "画像登録"}
+                {seminar.image_url ? "画像を変更" : "画像を登録"}
               </Button>
             </div>
 
@@ -480,13 +486,14 @@ export default function EditSeminarPage({
               </Select>
             </div>
 
-            <div className="flex gap-2 flex-wrap">
-              <Button type="submit" disabled={loading}>
+            <div className="flex gap-3 flex-wrap pt-2">
+              <Button type="submit" size="lg" disabled={loading} className="px-8">
                 {loading ? "更新中..." : "更新する"}
               </Button>
               <Button
                 type="button"
                 variant="outline"
+                size="lg"
                 onClick={() => router.push("/admin/seminars")}
               >
                 一覧に戻る

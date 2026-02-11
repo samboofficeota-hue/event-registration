@@ -559,6 +559,28 @@ export async function findReservationByNumber(
   return null;
 }
 
+/** テナント用: 指定したマスタースプレッドシートの予約番号インデックスから検索する。 */
+export async function findReservationByNumberForTenant(
+  masterSpreadsheetId: string,
+  reservationNumber: string
+): Promise<{ spreadsheet_id: string; reservation_id: string } | null> {
+  await ensureReservationIndexSheetFor(masterSpreadsheetId);
+  const rows = await getSheetData(
+    masterSpreadsheetId,
+    RESERVATION_INDEX_SHEET_NAME
+  );
+  const key = reservationNumber.trim().toLowerCase();
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0]?.trim().toLowerCase() === key) {
+      return {
+        spreadsheet_id: rows[i][1] || "",
+        reservation_id: rows[i][2] || "",
+      };
+    }
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // セミナー専用スプレッドシートの自動作成
 // ---------------------------------------------------------------------------
@@ -566,9 +588,11 @@ export async function findReservationByNumber(
 /**
  * 新しいスプレッドシートを作成し、必要なシート（タブ）とヘッダー行を設定する。
  * Google Drive API でフォルダに配置する場合は GOOGLE_DRIVE_FOLDER_ID 環境変数を設定。
+ * テナント用フォルダに配置したい場合は overrideFolderId を渡す。
  */
 export async function createSeminarSpreadsheet(
-  seminarTitle: string
+  seminarTitle: string,
+  overrideFolderId?: string
 ): Promise<string> {
   const token = await getAccessToken();
 
@@ -617,7 +641,7 @@ export async function createSeminarSpreadsheet(
           {
             range: "イベント情報!A1:T1",
             values: [[
-              "ID", "タイトル", "説明", "開催日時", "所要時間(分)",
+              "ID", "タイトル", "説明", "開催日時", "終了時刻",
               "定員", "現在の予約数", "登壇者", "Meet URL", "Calendar Event ID",
               "ステータス", "spreadsheet_id", "肩書き", "開催形式", "対象",
               "招待コード", "画像URL", "作成日時", "更新日時", "参考URL",
@@ -673,7 +697,8 @@ export async function createSeminarSpreadsheet(
   }
 
   // 3. Google Drive フォルダに移動（設定されている場合）
-  const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+  const folderId = overrideFolderId || process.env.GOOGLE_DRIVE_FOLDER_ID;
+  console.log("[createSeminarSpreadsheet] overrideFolderId:", overrideFolderId, "folderId:", folderId);
   if (folderId) {
     try {
       // 現在の親を取得
@@ -683,15 +708,23 @@ export async function createSeminarSpreadsheet(
       );
       const fileData = await fileRes.json();
       const previousParents = (fileData.parents || []).join(",");
+      console.log("[createSeminarSpreadsheet] Moving spreadsheet", spreadsheetId, "from", previousParents, "to", folderId);
 
       // 新しいフォルダに移動
-      await fetch(
-        `${DRIVE_API}/${spreadsheetId}?addParents=${folderId}&removeParents=${previousParents}`,
+      const moveRes = await fetch(
+        `${DRIVE_API}/${spreadsheetId}?addParents=${folderId}&removeParents=${previousParents}&fields=id,parents`,
         {
           method: "PATCH",
           headers: { Authorization: `Bearer ${token}` },
         }
       );
+      if (!moveRes.ok) {
+        const moveError = await moveRes.text();
+        console.error("[createSeminarSpreadsheet] Drive move failed:", moveRes.status, moveError);
+      } else {
+        const moveData = await moveRes.json();
+        console.log("[createSeminarSpreadsheet] Move success, new parents:", moveData.parents);
+      }
     } catch (err) {
       console.error("Failed to move spreadsheet to folder:", err);
       // フォルダ移動の失敗は致命的でないので続行
@@ -711,7 +744,7 @@ const MASTER_SEMINAR_LIST_HEADER = [
   "タイトル",
   "説明",
   "開催日時",
-  "所要時間(分)",
+  "終了時刻",
   "定員",
   "現在の予約数",
   "登壇者",
@@ -728,6 +761,94 @@ const MASTER_SEMINAR_LIST_HEADER = [
   "更新日時",
   "参考URL",
 ];
+
+/**
+ * マスタースプレッドシートの「セミナー一覧」ヘッダー行を最新の20列形式に自動修正する。
+ * - 列数が20未満の場合（古い形式）→ 正しいヘッダーで上書き
+ * - 「所要時間(分)」→「終了時刻」のリネーム
+ * 既にデータがある行には影響しない（ヘッダー行のみ更新）。
+ */
+export async function ensureMasterHeaders(spreadsheetId: string): Promise<void> {
+  try {
+    const rows = await getSheetData(spreadsheetId, "セミナー一覧");
+    if (rows.length === 0) return; // シートが空なら何もしない
+
+    const currentHeader = rows[0];
+    const expectedHeader = MASTER_SEMINAR_LIST_HEADER;
+
+    // ヘッダーが一致していれば何もしない
+    const needsUpdate =
+      currentHeader.length !== expectedHeader.length ||
+      currentHeader.some((val, i) => val !== expectedHeader[i]);
+
+    if (!needsUpdate) return;
+
+    console.log(
+      "[ensureMasterHeaders] Updating header for",
+      spreadsheetId,
+      "from",
+      currentHeader.length,
+      "cols to",
+      expectedHeader.length,
+      "cols"
+    );
+
+    const token = await getAccessToken();
+    await fetch(
+      `${SHEETS_API}/${spreadsheetId}/values/${encodeURIComponent("セミナー一覧!A1:T1")}?valueInputOption=USER_ENTERED`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ values: [expectedHeader] }),
+      }
+    );
+  } catch (err) {
+    console.error("[ensureMasterHeaders] Failed:", err);
+  }
+}
+
+/**
+ * セミナー個別スプレッドシートの「イベント情報」ヘッダー行を最新の20列形式に自動修正する。
+ */
+export async function ensureSeminarSpreadsheetHeaders(spreadsheetId: string): Promise<void> {
+  const SEMINAR_EVENT_HEADER = [
+    "ID", "タイトル", "説明", "開催日時", "終了時刻",
+    "定員", "現在の予約数", "登壇者", "Meet URL", "Calendar Event ID",
+    "ステータス", "spreadsheet_id", "肩書き", "開催形式", "対象",
+    "招待コード", "画像URL", "作成日時", "更新日時", "参考URL",
+  ];
+  try {
+    const rows = await getSheetData(spreadsheetId, "イベント情報");
+    if (rows.length === 0) return;
+
+    const currentHeader = rows[0];
+    const needsUpdate =
+      currentHeader.length !== SEMINAR_EVENT_HEADER.length ||
+      currentHeader.some((val, i) => val !== SEMINAR_EVENT_HEADER[i]);
+
+    if (!needsUpdate) return;
+
+    console.log("[ensureSeminarSpreadsheetHeaders] Updating header for", spreadsheetId);
+
+    const token = await getAccessToken();
+    await fetch(
+      `${SHEETS_API}/${spreadsheetId}/values/${encodeURIComponent("イベント情報!A1:T1")}?valueInputOption=USER_ENTERED`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ values: [SEMINAR_EVENT_HEADER] }),
+      }
+    );
+  } catch (err) {
+    console.error("[ensureSeminarSpreadsheetHeaders] Failed:", err);
+  }
+}
 
 /**
  * テナント用の予約管理マスターを新規作成する。

@@ -7,11 +7,13 @@ import {
   appendMasterRowForTenant,
   createSeminarSpreadsheet,
   appendRow,
+  ensureMasterHeaders,
+  ensureSeminarSpreadsheetHeaders,
 } from "@/lib/google/sheets";
 import { createCalendarEvent } from "@/lib/google/calendar";
 import { rowToSeminar } from "@/lib/seminars";
 import { getSurveyQuestions } from "@/lib/survey/storage";
-import { isTenantKey } from "@/lib/tenant-config";
+import { isTenantKey, getTenantConfig } from "@/lib/tenant-config";
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,6 +21,20 @@ export async function GET(request: NextRequest) {
     const tenant = searchParams.get("tenant");
     const statusFilter = searchParams.get("status");
     const withSurveyStatus = searchParams.get("with_survey_status") === "1";
+
+    // マスタースプレッドシートのヘッダーを最新形式に自動修正
+    const tenantKeyGet = tenant && isTenantKey(tenant) ? tenant : undefined;
+    try {
+      if (tenantKeyGet) {
+        const tc = getTenantConfig(tenantKeyGet);
+        if (tc) await ensureMasterHeaders(tc.masterSpreadsheetId);
+      } else {
+        const defaultMasterId = process.env.GOOGLE_SPREADSHEET_ID;
+        if (defaultMasterId) await ensureMasterHeaders(defaultMasterId);
+      }
+    } catch (headerErr) {
+      console.error("Failed to ensure master headers (GET):", headerErr);
+    }
 
     const rows = tenant
       ? await getMasterDataForTenant(tenant)
@@ -104,10 +120,13 @@ export async function POST(request: NextRequest) {
       console.error("Calendar event creation failed:", calError);
     }
 
-    // 2. セミナー専用スプレッドシートを自動作成
+    // 2. セミナー専用スプレッドシートを自動作成（テナントの場合はテナント用フォルダに配置）
+    const tenantConfig = tenantKey ? getTenantConfig(tenantKey) : null;
+    const tenantFolderId = tenantConfig?.driveFolderId || undefined;
+    console.log("[seminars/POST] tenantKey:", tenantKey, "driveFolderId:", tenantConfig?.driveFolderId, "tenantFolderId:", tenantFolderId);
     let spreadsheetId = "";
     try {
-      spreadsheetId = await createSeminarSpreadsheet(title);
+      spreadsheetId = await createSeminarSpreadsheet(title, tenantFolderId);
     } catch (ssError) {
       console.error("Spreadsheet creation failed:", ssError);
       return NextResponse.json(
@@ -118,6 +137,18 @@ export async function POST(request: NextRequest) {
 
     const formatVal = ["venue", "online", "hybrid"].includes(format) ? format : "online";
     const targetVal = ["members_only", "public"].includes(target) ? target : "public";
+
+    // 2.5. マスタースプレッドシートのヘッダーを最新形式に自動修正
+    try {
+      if (tenantConfig) {
+        await ensureMasterHeaders(tenantConfig.masterSpreadsheetId);
+      } else {
+        const defaultMasterId = process.env.GOOGLE_SPREADSHEET_ID;
+        if (defaultMasterId) await ensureMasterHeaders(defaultMasterId);
+      }
+    } catch (headerErr) {
+      console.error("Failed to ensure master headers:", headerErr);
+    }
 
     // 3. セミナー専用スプレッドシートの「イベント情報」シートにも書き込む
     // 列順: A:id … R:updated_at S:参考URL

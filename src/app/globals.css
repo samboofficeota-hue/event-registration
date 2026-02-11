@@ -429,6 +429,18 @@
   line-height: 1.6;
 }
 
+/* 管理画面のフォーム — Label サイズと input サイズを統一 */
+.admin-main form label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.admin-main form input,
+.admin-main form textarea,
+.admin-main form [role="combobox"] {
+  font-size: 0.875rem;
+}
+
 /* セミナーカードのグリッド */
 .admin-seminar-grid {
   display: grid;
