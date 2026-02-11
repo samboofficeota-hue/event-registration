@@ -67,13 +67,14 @@ export async function POST(
     const now = new Date().toISOString();
     const individualSpreadsheetId = result.values[11]; // L列: spreadsheet_id
 
-    // 1. マスタースプレッドシートの P列（インデックス15）に画像URL を更新
+    // 1. マスタースプレッドシートの Q列（インデックス16）に画像URL を更新
+    //    列順: ... P(15):招待コード Q(16):画像URL R(17):作成日時 S(18):更新日時 T(19):参考URL
     console.log("[Image Upload] Updating master spreadsheet...");
 
     const updatedMaster = [...result.values];
-    while (updatedMaster.length < 19) updatedMaster.push("");
-    updatedMaster[15] = imageUrl;  // P列
-    updatedMaster[17] = now;        // R列
+    while (updatedMaster.length < 20) updatedMaster.push("");
+    updatedMaster[16] = imageUrl;  // Q列: 画像URL
+    updatedMaster[18] = now;        // S列: 更新日時
 
     if (tenantKey) {
       await updateMasterRowForTenant(tenantKey, result.rowIndex, updatedMaster);
@@ -89,9 +90,9 @@ export async function POST(
       const individualResult = await findRowById(individualSpreadsheetId, "イベント情報", id);
       if (individualResult) {
         const updatedIndividual = [...individualResult.values];
-        while (updatedIndividual.length < 19) updatedIndividual.push("");
-        updatedIndividual[15] = imageUrl;  // P列
-        updatedIndividual[17] = now;        // R列
+        while (updatedIndividual.length < 20) updatedIndividual.push("");
+        updatedIndividual[16] = imageUrl;  // Q列: 画像URL
+        updatedIndividual[18] = now;        // S列: 更新日時
 
         await updateRow(individualSpreadsheetId, "イベント情報", individualResult.rowIndex, updatedIndividual);
         console.log("[Image Upload] Individual spreadsheet update successful");

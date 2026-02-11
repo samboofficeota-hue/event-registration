@@ -597,34 +597,98 @@ export async function createSeminarSpreadsheet(
   const token = await getAccessToken();
 
   // 1. スプレッドシート作成（6シート構成：イベント・予約・事前/事後アンケート・事前/事後アンケート設問）
-  const createRes = await fetch(SHEETS_API, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      properties: {
-        title: `【セミナー】${seminarTitle}`,
+  //    フォルダ指定がある場合は Drive API で直接フォルダ内に作成する
+  const targetFolderId = overrideFolderId || process.env.GOOGLE_DRIVE_FOLDER_ID;
+  console.log("[createSeminarSpreadsheet] targetFolderId:", targetFolderId, "(override:", overrideFolderId, ")");
+
+  let spreadsheetId: string;
+
+  if (targetFolderId) {
+    // Drive API でフォルダ内に直接スプレッドシートを作成
+    const driveCreateRes = await fetch(
+      `${DRIVE_API}?fields=id`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: `【セミナー】${seminarTitle}`,
+          mimeType: "application/vnd.google-apps.spreadsheet",
+          parents: [targetFolderId],
+        }),
+      }
+    );
+
+    if (!driveCreateRes.ok) {
+      const error = await driveCreateRes.text();
+      console.error("[createSeminarSpreadsheet] Drive create failed:", driveCreateRes.status, error);
+      throw new Error(`Failed to create seminar spreadsheet in folder: ${error}`);
+    }
+
+    const driveFile = await driveCreateRes.json();
+    spreadsheetId = driveFile.id;
+    console.log("[createSeminarSpreadsheet] Created in folder", targetFolderId, "spreadsheetId:", spreadsheetId);
+
+    // シートを追加（デフォルトの Sheet1 をリネーム + 5シート追加）
+    const batchSheetRes = await fetch(
+      `${SHEETS_API}/${spreadsheetId}:batchUpdate`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          requests: [
+            // デフォルトシートをリネーム
+            { updateSheetProperties: { properties: { sheetId: 0, title: "イベント情報", index: 0 }, fields: "title,index" } },
+            { addSheet: { properties: { title: "予約情報", index: 1 } } },
+            { addSheet: { properties: { title: "事前アンケート", index: 2 } } },
+            { addSheet: { properties: { title: "事後アンケート", index: 3 } } },
+            { addSheet: { properties: { title: "事前アンケート設問", index: 4 } } },
+            { addSheet: { properties: { title: "事後アンケート設問", index: 5 } } },
+          ],
+        }),
+      }
+    );
+
+    if (!batchSheetRes.ok) {
+      const error = await batchSheetRes.text();
+      console.error("[createSeminarSpreadsheet] Sheet setup failed:", error);
+    }
+  } else {
+    // フォルダ指定なしの場合は Sheets API で作成（ルートに配置）
+    const createRes = await fetch(SHEETS_API, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
-      sheets: [
-        { properties: { title: "イベント情報", index: 0 } },
-        { properties: { title: "予約情報", index: 1 } },
-        { properties: { title: "事前アンケート", index: 2 } },
-        { properties: { title: "事後アンケート", index: 3 } },
-        { properties: { title: "事前アンケート設問", index: 4 } },
-        { properties: { title: "事後アンケート設問", index: 5 } },
-      ],
-    }),
-  });
+      body: JSON.stringify({
+        properties: {
+          title: `【セミナー】${seminarTitle}`,
+        },
+        sheets: [
+          { properties: { title: "イベント情報", index: 0 } },
+          { properties: { title: "予約情報", index: 1 } },
+          { properties: { title: "事前アンケート", index: 2 } },
+          { properties: { title: "事後アンケート", index: 3 } },
+          { properties: { title: "事前アンケート設問", index: 4 } },
+          { properties: { title: "事後アンケート設問", index: 5 } },
+        ],
+      }),
+    });
 
-  if (!createRes.ok) {
-    const error = await createRes.text();
-    throw new Error(`Failed to create seminar spreadsheet: ${error}`);
+    if (!createRes.ok) {
+      const error = await createRes.text();
+      throw new Error(`Failed to create seminar spreadsheet: ${error}`);
+    }
+
+    const spreadsheet = await createRes.json();
+    spreadsheetId = spreadsheet.spreadsheetId;
   }
-
-  const spreadsheet = await createRes.json();
-  const spreadsheetId: string = spreadsheet.spreadsheetId;
 
   // 2. 各シートにヘッダー行を設定（バッチ更新）
   const batchRes = await fetch(
@@ -694,41 +758,6 @@ export async function createSeminarSpreadsheet(
   if (!batchRes.ok) {
     const error = await batchRes.text();
     throw new Error(`Failed to set headers: ${error}`);
-  }
-
-  // 3. Google Drive フォルダに移動（設定されている場合）
-  const folderId = overrideFolderId || process.env.GOOGLE_DRIVE_FOLDER_ID;
-  console.log("[createSeminarSpreadsheet] overrideFolderId:", overrideFolderId, "folderId:", folderId);
-  if (folderId) {
-    try {
-      // 現在の親を取得
-      const fileRes = await fetch(
-        `${DRIVE_API}/${spreadsheetId}?fields=parents`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      const fileData = await fileRes.json();
-      const previousParents = (fileData.parents || []).join(",");
-      console.log("[createSeminarSpreadsheet] Moving spreadsheet", spreadsheetId, "from", previousParents, "to", folderId);
-
-      // 新しいフォルダに移動
-      const moveRes = await fetch(
-        `${DRIVE_API}/${spreadsheetId}?addParents=${folderId}&removeParents=${previousParents}&fields=id,parents`,
-        {
-          method: "PATCH",
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-      if (!moveRes.ok) {
-        const moveError = await moveRes.text();
-        console.error("[createSeminarSpreadsheet] Drive move failed:", moveRes.status, moveError);
-      } else {
-        const moveData = await moveRes.json();
-        console.log("[createSeminarSpreadsheet] Move success, new parents:", moveData.parents);
-      }
-    } catch (err) {
-      console.error("Failed to move spreadsheet to folder:", err);
-      // フォルダ移動の失敗は致命的でないので続行
-    }
   }
 
   return spreadsheetId;
