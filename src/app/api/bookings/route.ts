@@ -15,11 +15,11 @@ import { sendReservationConfirmation, sendCancellationNotification } from "@/lib
 import { rowToSeminar } from "@/lib/seminars";
 import { isMemberDomainEmail } from "@/lib/member-domains";
 import { generateReservationNumber } from "@/lib/reservation-number";
-import { getTenantConfig, isTenantKey, TENANT_KEYS } from "@/lib/tenant-config";
+import { getTenantConfig, isTenantKey, TENANT_KEYS, type TenantKey } from "@/lib/tenant-config";
 import { getSurveyQuestions } from "@/lib/survey/storage";
 
 /** body に tenant が無い場合、Referer のパスからテナントを補完（クライアント渡し忘れ対策） */
-function tenantFromReferer(request: NextRequest): string | undefined {
+function tenantFromReferer(request: NextRequest): TenantKey | undefined {
   const referer = request.headers.get("referer") || request.headers.get("origin");
   if (!referer) return undefined;
   try {
