@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -25,6 +26,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { Seminar } from "@/lib/types";
+import { TENANT_KEYS } from "@/lib/tenant-config";
 import { normalizeLineBreaks } from "@/lib/utils";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -77,10 +79,15 @@ export function SeminarDetailModal({
   const [mounted, setMounted] = useState(false);
   const [view, setView] = useState<ModalView>("detail");
 
+  const pathname = usePathname();
   // basePath からテナントキーを抽出（例: "/whgc-seminars" → "whgc-seminars"）
-  // "/seminars" の場合は undefined（デフォルトテナント）
-  const tenantKey =
+  // "/seminars" の場合は undefined。pathname からも補完（tenant 抜け対策）
+  const tenantKeyFromBasePath =
     basePath !== "/seminars" ? basePath.replace(/^\//, "") : undefined;
+  const tenantKeyFromPath = pathname
+    ? TENANT_KEYS.find((t) => pathname.startsWith(`/${t}`))
+    : undefined;
+  const tenantKey = tenantKeyFromBasePath ?? tenantKeyFromPath;
 
   // Booking form state
   const [formData, setFormData] = useState({

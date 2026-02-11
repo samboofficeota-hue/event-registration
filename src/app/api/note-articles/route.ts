@@ -47,9 +47,16 @@ export async function GET(req: Request) {
       const pubDate = extractTag(block, "pubDate");
       const creator = extractTag(block, "note:creatorName");
 
-      // <media:thumbnail url="..." />
-      const thumbMatch = block.match(/<media:thumbnail[^>]+url="([^"]+)"/);
-      const image = thumbMatch?.[1] || "";
+      // 画像URL: media:thumbnail → description/content 内の最初の img src（note.com は thumbnail がない場合あり）
+      let image = "";
+      const thumbMatch = block.match(/<media:thumbnail[^>]+url=["']([^"']+)["']/);
+      if (thumbMatch?.[1]) {
+        image = thumbMatch[1];
+      } else {
+        const description = extractTag(block, "description") || extractTag(block, "content:encoded") || "";
+        const imgMatch = description.match(/<img[^>]+src=["']([^"']+)["']/i);
+        if (imgMatch?.[1]) image = imgMatch[1];
+      }
 
       if (title && url) {
         items.push({ title, url, image, pubDate, creator });

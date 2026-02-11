@@ -33,6 +33,12 @@ function formatRelativeDate(dateStr: string): string {
 
 const NOTE_USER = "whgc_official";
 
+/** 外部画像をプロキシ経由で表示（Referer 制限・混在コンテンツ対策） */
+function noteImageSrc(imageUrl: string): string {
+  if (!imageUrl) return "";
+  return `/api/note-articles/image?url=${encodeURIComponent(imageUrl)}`;
+}
+
 export function NoteArticlesSection() {
   const [articles, setArticles] = useState<NoteArticle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,35 +99,42 @@ export function NoteArticlesSection() {
               rel="noopener noreferrer"
               className="group block rounded-2xl overflow-hidden bg-card border border-border hover:shadow-xl transition-all duration-300"
             >
-              {/* サムネイル */}
+              {/* サムネイル（プロキシ経由で読み込み） */}
               <div className="relative aspect-[16/9] overflow-hidden bg-muted">
                 {article.image ? (
                   <img
-                    src={article.image}
+                    src={noteImageSrc(article.image)}
                     alt={article.title}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     loading="lazy"
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                      const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                      if (fallback) fallback.classList.remove("hidden");
+                    }}
                   />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                    <Newspaper className="w-10 h-10" />
-                  </div>
-                )}
+                ) : null}
+                <div
+                  className={`w-full h-full flex items-center justify-center text-muted-foreground ${article.image ? "hidden" : ""}`}
+                  aria-hidden
+                >
+                  <Newspaper className="w-10 h-10" />
+                </div>
               </div>
 
-              {/* テキスト */}
-              <div className="p-4 space-y-2">
-                <p className="text-xs text-muted-foreground">
+              {/* テキスト（global.css の block-stack-tight / フォント規定に合わせる） */}
+              <div className="p-5 block-stack-tight">
+                <p className="text-sm text-muted-foreground">
                   {formatRelativeDate(article.pubDate)}
                 </p>
-                <h3 className="text-sm font-semibold text-foreground leading-snug line-clamp-3 group-hover:text-primary transition-colors">
+                <h3 className="text-base font-semibold text-foreground leading-relaxed line-clamp-3 group-hover:text-primary transition-colors">
                   {article.title}
                 </h3>
-                <div className="flex items-center gap-2 pt-1">
-                  <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-[10px] text-white font-bold">
+                <div className="flex items-center gap-2 pt-0.5">
+                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-xs text-white font-bold">
                     W
                   </div>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-sm text-muted-foreground">
                     WHGC公式
                   </span>
                 </div>
