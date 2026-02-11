@@ -11,8 +11,8 @@ export function Header({ basePath = "/seminars" }: HeaderProps) {
   return (
     <header className="border-b bg-white">
       <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4">
-        <Link href={basePath} className="text-xl font-bold text-gray-900">
-          オンラインセミナー
+        <Link href={basePath} className="text-base font-bold text-gray-900">
+          WHGC ゲームチェンジャーズ・フォーラム
         </Link>
         <nav className="flex items-center gap-4">
           <Link

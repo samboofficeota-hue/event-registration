@@ -89,8 +89,7 @@ export function SeminarCard({ seminar, index, onSelect }: SeminarCardProps) {
               <div className="flex items-center gap-2 text-sm font-bold text-foreground">
                 <Clock className="w-4 h-4 shrink-0 text-primary" />
                 <span>
-                  {format(date, "M月d日(E)HH:mm", { locale: ja })}・
-                  ～ {seminar.end_time || ""}
+                  {format(date, "M月d日(E)HH:mm", { locale: ja })}〜{seminar.end_time || ""}
                 </span>
               </div>
               <div className="flex items-center gap-2 text-sm text-foreground">
@@ -130,10 +129,7 @@ export function SeminarCard({ seminar, index, onSelect }: SeminarCardProps) {
             {/* フッター */}
             <div className="mt-auto flex items-center justify-between border-t border-border pt-4 flex-shrink-0">
               <div className="text-sm text-foreground">
-                <span className="font-medium">
-                  {seminar.current_bookings}/{seminar.capacity}人
-                </span>
-                参加予定
+                定員 <span className="font-medium">{seminar.capacity}名</span>
               </div>
               <Button
                 size="sm"
