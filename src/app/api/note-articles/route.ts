@@ -86,27 +86,42 @@ function decodeHtmlEntities(s: string): string {
 
 /**
  * note.com RSS の item ブロックから画像 URL を取得する。
- * サンプル形式: https://assets.st-note.com/production/uploads/images/...?width=600
+ * 形式例: https://assets.st-note.com/production/uploads/images/242248581/rectangle_large_type_2_xxx.png?width=600
  */
 function extractNoteImageUrl(block: string): string {
-  // 1) media:thumbnail の url 属性（属性順不同に対応）
-  const thumbMatch = block.match(/<media:thumbnail[^>]*url=["']([^"']+)["']/i);
-  if (thumbMatch?.[1]?.startsWith("http")) return thumbMatch[1];
+  const decoded = decodeHtmlEntities(block);
 
-  // 2) その他 thumbnail 系タグ（名前空間違いなど）
-  const anyThumb = block.match(/<[^>]*thumbnail[^>]*url=["']([^"']+)["']/i);
-  if (anyThumb?.[1]?.startsWith("http")) return anyThumb[1];
+  // 1) media:thumbnail の url 属性（属性順: url 先でも content 先でも可）
+  const thumbMatch = decoded.match(
+    /<media:thumbnail[^>]*(?:url=["']([^"']+)["']|content=["']([^"']+)["'])/i
+  );
+  const thumbUrl = thumbMatch?.[1] || thumbMatch?.[2];
+  if (thumbUrl?.startsWith("http")) return thumbUrl;
+
+  // 2) その他 thumbnail 系タグ
+  const anyThumb = decoded.match(/<[^>]*thumbnail[^>]*(?:url=["']([^"']+)["']|content=["']([^"']+)["'])/i);
+  const anyUrl = anyThumb?.[1] || anyThumb?.[2];
+  if (anyUrl?.startsWith("http")) return anyUrl;
+
+  // 3) item ブロック全体から note のサムネイル URL を直接検索（RSS 構造に依存しないフォールバック）
+  const stNoteMatch = decoded.match(
+    /https?:\/\/assets\.st-note\.com\/production\/uploads\/images\/[^\s"'<>]+/i
+  );
+  if (stNoteMatch?.[0]) {
+    const url = stNoteMatch[0].replace(/&amp;/g, "&");
+    return url.startsWith("http") ? url : `https:${url}`;
+  }
 
   const rawDesc =
     extractTag(block, "description") || extractTag(block, "content:encoded") || "";
   const desc = decodeHtmlEntities(rawDesc);
 
-  // 3) og:image（note の description に meta が含まれる場合）
+  // 4) og:image（note の description に meta が含まれる場合）
   const ogMatch = desc.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
     || desc.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
   if (ogMatch?.[1]?.startsWith("http")) return ogMatch[1];
 
-  // 4) description 内の最初の img src（CDATA やエスケープあり）
+  // 5) description 内の最初の img src
   const imgMatch = desc.match(/<img[^>]+src=["']([^"']+)["']/i);
   if (imgMatch?.[1]?.startsWith("http")) return imgMatch[1];
 

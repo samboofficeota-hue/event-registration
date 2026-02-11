@@ -15,15 +15,28 @@ import { sendReservationConfirmation, sendCancellationNotification } from "@/lib
 import { rowToSeminar } from "@/lib/seminars";
 import { isMemberDomainEmail } from "@/lib/member-domains";
 import { generateReservationNumber } from "@/lib/reservation-number";
-import { getTenantConfig, isTenantKey } from "@/lib/tenant-config";
+import { getTenantConfig, isTenantKey, TENANT_KEYS } from "@/lib/tenant-config";
 import { getSurveyQuestions } from "@/lib/survey/storage";
+
+/** body に tenant が無い場合、Referer のパスからテナントを補完（クライアント渡し忘れ対策） */
+function tenantFromReferer(request: NextRequest): string | undefined {
+  const referer = request.headers.get("referer") || request.headers.get("origin");
+  if (!referer) return undefined;
+  try {
+    const pathname = new URL(referer).pathname;
+    return TENANT_KEYS.find((t) => pathname.startsWith(`/${t}`));
+  } catch {
+    return undefined;
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { seminar_id, name, email, company, department, phone, invitation_code, tenant } = body;
     const emailTrimmed = (email || "").trim().toLowerCase();
-    const tenantKey = tenant && isTenantKey(tenant) ? tenant : undefined;
+    let tenantKey = tenant && isTenantKey(tenant) ? tenant : undefined;
+    if (!tenantKey) tenantKey = tenantFromReferer(request);
 
     if (!seminar_id || !name || !email) {
       return NextResponse.json({ error: "必須項目が不足しています" }, { status: 400 });

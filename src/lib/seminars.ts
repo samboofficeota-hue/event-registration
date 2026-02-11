@@ -79,6 +79,7 @@ export async function getPublishedSeminars(): Promise<Seminar[]> {
 /**
  * 指定テナントのマスターから公開中のセミナー一覧を取得する。
  * テナント未設定の場合は空配列を返す。
+ * 各セミナーに tenant を付与し、予約APIで確実にテナントを渡せるようにする。
  */
 export async function getPublishedSeminarsForTenant(
   tenant: string
@@ -93,7 +94,7 @@ export async function getPublishedSeminarsForTenant(
     const seminars = rows
       .slice(1)
       .filter((row) => row[0]?.trim())
-      .map(rowToSeminar)
+      .map((row) => ({ ...rowToSeminar(row), tenant }))
       .filter((s) => s.status === "published");
 
     seminars.sort(

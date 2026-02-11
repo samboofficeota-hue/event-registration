@@ -33,6 +33,8 @@ export interface Seminar {
   spreadsheet_id: string; // セミナー専用スプレッドシートのID
   created_at: string;
   updated_at: string;
+  /** テナントキー（一覧取得時にテナント指定した場合のみ。予約APIに渡す） */
+  tenant?: string;
 }
 
 // ---------------------------------------------------------------------------

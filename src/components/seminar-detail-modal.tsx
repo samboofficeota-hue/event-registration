@@ -81,14 +81,16 @@ export function SeminarDetailModal({
   const [view, setView] = useState<ModalView>("detail");
 
   const pathname = usePathname();
-  // basePath からテナントキーを抽出（例: "/whgc-seminars" → "whgc-seminars"）
-  // "/seminars" の場合は undefined。pathname からも補完（tenant 抜け対策）
+  // テナントキー: セミナーデータに付与された tenant を最優先し、basePath・pathname から補完
   const tenantKeyFromBasePath =
     basePath !== "/seminars" ? basePath.replace(/^\//, "") : undefined;
   const tenantKeyFromPath = pathname
     ? TENANT_KEYS.find((t) => pathname.startsWith(`/${t}`))
     : undefined;
-  const tenantKey = tenantKeyFromBasePath ?? tenantKeyFromPath;
+  const tenantKey =
+    (seminar && "tenant" in seminar && seminar.tenant)
+      ? seminar.tenant
+      : (tenantKeyFromBasePath ?? tenantKeyFromPath);
 
   // Booking form state
   const [formData, setFormData] = useState({
@@ -180,6 +182,7 @@ export function SeminarDetailModal({
           ...formData,
           email: formData.email.trim(),
           invitation_code: invitationCode.trim() || undefined,
+          // 会員判定・セミナー取得に必須。セミナーに付与された tenant または basePath/pathname から送信
           ...(tenantKey ? { tenant: tenantKey } : {}),
         }),
       });
@@ -605,17 +608,15 @@ export function SeminarDetailModal({
 
       {/* 会員限定アラートモーダル（403 時に表示・反応がなく見える問題を解消） */}
       <Dialog open={showMemberOnlyModal} onOpenChange={setShowMemberOnlyModal}>
-        <DialogContent className="sm:max-w-md" aria-describedby="member-only-dialog-desc">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
               このセミナーは会員限定のものとなります
             </DialogTitle>
-          </DialogHeader>
-          <DialogDescription id="member-only-dialog-desc" asChild>
-            <p className="text-sm text-muted-foreground">
+            <DialogDescription>
               会員企業のメールアドレスでお申し込みいただくか、招待コードをお持ちの場合は入力のうえお申し込みください。
-            </p>
-          </DialogDescription>
+            </DialogDescription>
+          </DialogHeader>
           <DialogFooter>
             <Button onClick={() => setShowMemberOnlyModal(false)}>
               閉じる
