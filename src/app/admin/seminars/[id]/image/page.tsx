@@ -97,7 +97,7 @@ export default function SeminarImagePage({
 
       toast.success("画像を登録しました");
       setFile(null);
-      router.push(`/admin/seminars/${id}/edit`);
+      router.push(`/admin/seminars`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "アップロードに失敗しました");
     } finally {

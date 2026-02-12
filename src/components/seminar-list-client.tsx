@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
+import { CalendarCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { SeminarCard } from "@/components/seminar-card";
 import { SeminarDetailModal } from "@/components/seminar-detail-modal";
@@ -68,6 +69,16 @@ export function SeminarListClient({
         id="seminar-list"
         className="content-container section-stack"
       >
+        {/* 見出し */}
+        <div className="flex items-center justify-center gap-3">
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
+            <CalendarCheck className="w-5 h-5" />
+          </div>
+          <h2 className="text-2xl md:text-3xl font-bold text-foreground">
+            ご参加受付中のプログラム一覧
+          </h2>
+        </div>
+
         {/* フィルタボタン */}
         <div className="flex justify-center gap-3">
           {targetCategories.map((cat) => (
@@ -94,11 +105,6 @@ export function SeminarListClient({
             </Badge>
           ))}
         </div>
-
-        {/* 見出し */}
-        <h2 className="text-2xl md:text-3xl font-bold text-foreground text-center">
-          ご参加受付中のプログラム一覧
-        </h2>
 
         {filteredSeminars.length > 0 ? (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-[var(--block-gap)]">

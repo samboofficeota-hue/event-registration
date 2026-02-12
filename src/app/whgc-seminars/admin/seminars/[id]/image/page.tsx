@@ -95,7 +95,7 @@ export default function WhgcSeminarsSeminarImagePage({
 
       toast.success("画像を登録しました");
       setFile(null);
-      router.push(`${ADMIN_BASE}/seminars/${id}/edit`);
+      router.push(`${ADMIN_BASE}/seminars`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "アップロードに失敗しました");
     } finally {
@@ -165,7 +165,7 @@ export default function WhgcSeminarsSeminarImagePage({
             <Button
               type="button"
               variant="outline"
-              onClick={() => router.push(`${ADMIN_BASE}/seminars/${id}/edit`)}
+              onClick={() => router.push(`${ADMIN_BASE}/seminars`)}
             >
               キャンセル
             </Button>
