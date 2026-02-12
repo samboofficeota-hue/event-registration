@@ -17,6 +17,7 @@ import { isMemberDomainEmail } from "@/lib/member-domains";
 import { generateReservationNumber } from "@/lib/reservation-number";
 import { getTenantConfig, isTenantKey, TENANT_KEYS, type TenantKey } from "@/lib/tenant-config";
 import { getSurveyQuestions } from "@/lib/survey/storage";
+import { encodeSurveyToken } from "@/lib/survey-token";
 
 /** body に tenant が無い場合、Referer のパスからテナントを補完（クライアント渡し忘れ対策） */
 function tenantFromReferer(request: NextRequest): TenantKey | undefined {
@@ -148,9 +149,7 @@ export async function POST(request: NextRequest) {
             seminarDate: formattedDate,
             reservationNumber: existingNumber,
             reservationId: existingId,
-            preSurveyUrl: tenantKey
-              ? `${appUrl}/${tenantKey}/${seminar_id}/pre-survey?rid=${existingId}`
-              : `${appUrl}/seminars/${seminar_id}/pre-survey?rid=${existingId}`,
+            preSurveyUrl: `${appUrl}/survey/pre/${encodeSurveyToken(seminar_id, existingId)}`,
             manageUrl,
             meetUrl: seminar.meet_url || undefined,
             calendarAddUrl: calendarAddUrl || undefined,
@@ -223,9 +222,7 @@ export async function POST(request: NextRequest) {
       String(seminar.current_bookings + 1)
     );
 
-    const preSurveyUrlForNew = tenantKey
-      ? `${appUrl}/${tenantKey}/${seminar_id}/pre-survey?rid=${id}`
-      : `${appUrl}/seminars/${seminar_id}/pre-survey?rid=${id}`;
+    const preSurveyUrlForNew = `${appUrl}/survey/pre/${encodeSurveyToken(seminar_id, id)}`;
 
     try {
       await sendReservationConfirmation(

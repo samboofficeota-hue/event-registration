@@ -17,7 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import type { SurveyQuestion } from "@/lib/survey-config";
 import type { Seminar } from "@/lib/types";
-import { Trash2, Plus, Sheet } from "lucide-react";
+import { Trash2, Plus, Sheet, X } from "lucide-react";
 
 const TENANT = "whgc-seminars";
 const ADMIN_BASE = "/whgc-seminars/admin";
@@ -425,7 +425,21 @@ function QuestionEditor({
   onChange: (patch: Partial<SurveyQuestion>) => void;
   onRemove: () => void;
 }) {
-  const optionsStr = (question.options || []).join(", ");
+  const options = question.options || [];
+
+  function updateOption(idx: number, value: string) {
+    const next = [...options];
+    next[idx] = value;
+    onChange({ options: next });
+  }
+
+  function removeOption(idx: number) {
+    onChange({ options: options.filter((_, i) => i !== idx) });
+  }
+
+  function addOption() {
+    onChange({ options: [...options, ""] });
+  }
 
   return (
     <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
@@ -521,20 +535,37 @@ function QuestionEditor({
         </div>
       )}
       {question.type === "select" && (
-        <div className="space-y-1">
-          <Label>選択肢（カンマ区切りで入力）</Label>
-          <Input
-            value={optionsStr}
-            onChange={(e) =>
-              onChange({
-                options: e.target.value
-                  .split(",")
-                  .map((s) => s.trim())
-                  .filter(Boolean),
-              })
-            }
-            placeholder="初めて, 1年未満, 3年以上"
-          />
+        <div className="space-y-2">
+          <Label>選択肢</Label>
+          {options.map((opt, idx) => (
+            <div key={idx} className="flex items-center gap-2">
+              <Input
+                value={opt}
+                onChange={(e) => updateOption(idx, e.target.value)}
+                placeholder={`選択肢 ${idx + 1}`}
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="shrink-0 h-8 w-8 text-destructive hover:text-destructive"
+                onClick={() => removeOption(idx)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addOption}
+            className="gap-1"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            選択肢を追加
+          </Button>
         </div>
       )}
       {(question.type === "text" || question.type === "select") && (

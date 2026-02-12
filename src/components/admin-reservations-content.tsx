@@ -41,6 +41,7 @@ import {
   MapPin,
   Users,
   ArrowRight,
+  Copy,
 } from "lucide-react";
 
 type SeminarWithSurveyStatus = Seminar & {
@@ -67,6 +68,44 @@ const formatColors: Record<string, string> = {
   venue: "bg-purple-600 text-white",
   hybrid: "bg-pink-500 text-white",
 };
+
+/** アンケートURLコピーボタン */
+function CopyLinkButton({
+  seminarId,
+  type,
+  publicBase,
+}: {
+  seminarId: string;
+  type: "pre" | "post";
+  publicBase: string;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    const surveyType = type === "pre" ? "pre-survey" : "post-survey";
+    const path = `${publicBase}/${seminarId}/${surveyType}`;
+    const fullUrl =
+      typeof window !== "undefined" ? `${window.location.origin}${path}` : path;
+    navigator.clipboard.writeText(fullUrl).then(() => {
+      setCopied(true);
+      toast.success("アンケートURLをコピーしました");
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className="h-8 w-8 p-0 shrink-0"
+      onClick={handleCopy}
+      title={`${type === "pre" ? "事前" : "事後"}アンケートURLをコピー`}
+    >
+      <Copy className={`size-3.5 ${copied ? "text-green-600" : "text-muted-foreground"}`} />
+    </Button>
+  );
+}
 
 export interface AdminReservationsContentProps {
   /** 管理画面のベースパス（例: /admin または /whgc-seminars/admin） */
@@ -337,34 +376,48 @@ export function AdminReservationsContent({
               <CardFooter className="flex flex-col gap-3 border-t border-border px-5 pb-5 pt-4">
                 {hasSheet && (
                   <div className="admin-card-footer w-full">
-                    <Button
-                      type="button"
-                      variant={hasPre ? "default" : "outline"}
-                      size="sm"
-                      className={`gap-1.5 text-[0.8125rem] ${hasPre ? "bg-sky-600 hover:bg-sky-700 text-white" : "text-muted-foreground"}`}
-                      asChild
-                    >
-                      <Link
-                        href={`${adminBase}/survey-questions?seminarId=${s.id}&type=pre`}
+                    <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        variant={hasPre ? "default" : "outline"}
+                        size="sm"
+                        className={`gap-1.5 text-[0.8125rem] ${hasPre ? "bg-sky-600 hover:bg-sky-700 text-white" : "text-muted-foreground"}`}
+                        asChild
                       >
-                        <FileEdit className="size-3.5" />
-                        事前アンケート
-                      </Link>
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={hasPost ? "default" : "outline"}
-                      size="sm"
-                      className={`gap-1.5 text-[0.8125rem] ${hasPost ? "bg-amber-600 hover:bg-amber-700 text-white" : "text-muted-foreground"}`}
-                      asChild
-                    >
-                      <Link
-                        href={`${adminBase}/survey-questions?seminarId=${s.id}&type=post`}
+                        <Link
+                          href={`${adminBase}/survey-questions?seminarId=${s.id}&type=pre`}
+                        >
+                          <FileEdit className="size-3.5" />
+                          事前アンケート
+                        </Link>
+                      </Button>
+                      <CopyLinkButton
+                        seminarId={s.id}
+                        type="pre"
+                        publicBase={tenant ? `/${tenant}` : "/seminars"}
+                      />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        variant={hasPost ? "default" : "outline"}
+                        size="sm"
+                        className={`gap-1.5 text-[0.8125rem] ${hasPost ? "bg-amber-600 hover:bg-amber-700 text-white" : "text-muted-foreground"}`}
+                        asChild
                       >
-                        <FileEdit className="size-3.5" />
-                        事後アンケート
-                      </Link>
-                    </Button>
+                        <Link
+                          href={`${adminBase}/survey-questions?seminarId=${s.id}&type=post`}
+                        >
+                          <FileEdit className="size-3.5" />
+                          事後アンケート
+                        </Link>
+                      </Button>
+                      <CopyLinkButton
+                        seminarId={s.id}
+                        type="post"
+                        publicBase={tenant ? `/${tenant}` : "/seminars"}
+                      />
+                    </div>
                   </div>
                 )}
                 <div className="admin-card-footer w-full border-t border-border pt-3">
