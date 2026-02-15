@@ -12,6 +12,11 @@ binding = "ASSETS"
 binding = "WORKER_SELF_REFERENCE"
 service = "event-registration"
 
+# ダッシュボードの Custom domain と同期（証明書は Cloudflare が自動管理）
+[[routes]]
+pattern = "events.allianceforum.org"
+custom_domain = true
+
 [vars]
 NEXT_PUBLIC_APP_URL = "https://events.allianceforum.org"
 # Resend テスト用アドレス（DNS認証不要）
