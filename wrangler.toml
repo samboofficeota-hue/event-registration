@@ -13,6 +13,6 @@ binding = "WORKER_SELF_REFERENCE"
 service = "event-registration"
 
 [vars]
-NEXT_PUBLIC_APP_URL = "https://event-registration.y-ota.workers.dev"
+NEXT_PUBLIC_APP_URL = "https://events.allianceforum.org"
 # Resend テスト用アドレス（DNS認証不要）
 RESEND_FROM_EMAIL = "onboarding@resend.dev"
