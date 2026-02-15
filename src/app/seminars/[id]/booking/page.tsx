@@ -19,7 +19,7 @@ import { ArrowLeft, Calendar, Clock, MapPin, User } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import { normalizeLineBreaks } from "@/lib/utils";
-import type { Seminar } from "@/lib/types";
+import type { Seminar, ParticipationMethod } from "@/lib/types";
 
 export default function BookingPage({
   params,
@@ -39,6 +39,7 @@ export default function BookingPage({
   });
   const [emailConfirm, setEmailConfirm] = useState("");
   const [invitationCode, setInvitationCode] = useState("");
+  const [participationMethod, setParticipationMethod] = useState<ParticipationMethod | "">("");
   const [showMemberOnlyModal, setShowMemberOnlyModal] = useState(false);
 
   useEffect(() => {
@@ -46,6 +47,10 @@ export default function BookingPage({
       .then((res) => res.json())
       .then((data) => {
         setSeminar(data);
+        // オンライン/会場のみの場合は参加方法を初期設定
+        if (data.format === "online") setParticipationMethod("online");
+        else if (data.format === "venue") setParticipationMethod("venue");
+        else setParticipationMethod("");
         // ステータスチェック
         if (data.status !== "published") {
           toast.error("このセミナーは現在予約を受け付けていません");
@@ -89,6 +94,21 @@ export default function BookingPage({
       return;
     }
 
+    // ハイブリッドの場合は参加方法を必須
+    const format = seminar?.format ?? "online";
+    const method: ParticipationMethod =
+      format === "hybrid"
+        ? (participationMethod === "venue" || participationMethod === "online"
+            ? participationMethod
+            : "")
+        : format === "venue"
+          ? "venue"
+          : "online";
+    if (format === "hybrid" && !method) {
+      toast.error("参加方法（会場またはオンライン）を選択してください");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -100,6 +120,7 @@ export default function BookingPage({
           ...formData,
           email: formData.email.trim(),
           invitation_code: invitationCode.trim() || undefined,
+          participation_method: method,
         }),
       });
 
@@ -336,6 +357,39 @@ export default function BookingPage({
                 />
               </div>
             )}
+
+            {/* 参加方法（会場 / オンライン / ハイブリッドに応じて表示） */}
+            <div className="space-y-3">
+              <Label>参加方法</Label>
+              <div className="flex flex-col gap-2">
+                {(seminar.format === "venue" || seminar.format === "hybrid") && (
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="participation_method"
+                      value="venue"
+                      checked={participationMethod === "venue"}
+                      onChange={() => setParticipationMethod("venue")}
+                      className="w-4 h-4 text-primary border-gray-300 focus:ring-primary"
+                    />
+                    <span>会場で参加する</span>
+                  </label>
+                )}
+                {(seminar.format === "online" || seminar.format === "hybrid") && (
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="participation_method"
+                      value="online"
+                      checked={participationMethod === "online"}
+                      onChange={() => setParticipationMethod("online")}
+                      className="w-4 h-4 text-primary border-gray-300 focus:ring-primary"
+                    />
+                    <span>オンラインで参加する</span>
+                  </label>
+                )}
+              </div>
+            </div>
 
             {/* 注意事項 */}
             <div className="mt-6 p-4 bg-gray-50 rounded-lg">

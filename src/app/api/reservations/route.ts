@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSheetData } from "@/lib/google/sheets";
 import type { Reservation } from "@/lib/types";
 
-// 予約情報シート列順: ... K:備考 L:予約番号（12列目、既存は11列のままもあり得る）
+// 予約情報シート列順: ... K:備考 L:予約番号 M:参加方法（13列目）
 
 function rowToReservation(row: string[]): Reservation {
+  const participation = row[12]?.trim();
   return {
     id: row[0] || "",
     name: row[1] || "",
@@ -18,6 +19,7 @@ function rowToReservation(row: string[]): Reservation {
     created_at: row[9] || "",
     note: row[10] || "",
     reservation_number: row[11] || undefined,
+    participation_method: participation === "venue" || participation === "online" ? participation : undefined,
   };
 }
 

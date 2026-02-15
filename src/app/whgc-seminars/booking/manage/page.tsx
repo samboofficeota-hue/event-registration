@@ -16,7 +16,7 @@ import {
 import { toast } from "sonner";
 import { ArrowLeft, Search, AlertCircle } from "lucide-react";
 import { normalizeLineBreaks } from "@/lib/utils";
-import type { Seminar } from "@/lib/types";
+import type { Seminar, ParticipationMethod } from "@/lib/types";
 
 const TENANT = "whgc-seminars";
 
@@ -46,6 +46,7 @@ interface ReservationData {
   department: string;
   phone: string;
   status: string;
+  participation_method?: ParticipationMethod;
 }
 
 export default function WhgcBookingManagePage() {
@@ -68,6 +69,7 @@ export default function WhgcBookingManagePage() {
   const [fcompany, setFcompany] = useState("");
   const [fdepartment, setFdepartment] = useState("");
   const [fphone, setFphone] = useState("");
+  const [fparticipationMethod, setFparticipationMethod] = useState<ParticipationMethod | "">("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -116,6 +118,7 @@ export default function WhgcBookingManagePage() {
             setFcompany(found.company);
             setFdepartment(found.department);
             setFphone(found.phone);
+            setFparticipationMethod(found.participation_method || "");
           }
         }
       } catch {
@@ -146,6 +149,7 @@ export default function WhgcBookingManagePage() {
           company: fcompany,
           department: fdepartment,
           phone: fphone,
+          participation_method: fparticipationMethod || undefined,
           tenant: TENANT,
         }),
       });
@@ -373,6 +377,41 @@ export default function WhgcBookingManagePage() {
                       onChange={(e) => setFphone(e.target.value)}
                     />
                   </div>
+
+                  {/* 参加方法（オンライン/会場/ハイブリッドに応じて表示） */}
+                  {(seminar.format === "online" || seminar.format === "venue" || seminar.format === "hybrid") && (
+                    <div className="space-y-2">
+                      <Label>参加方法</Label>
+                      <div className="flex flex-col gap-2">
+                        {(seminar.format === "venue" || seminar.format === "hybrid") && (
+                          <label className="flex items-center gap-3 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="modal-participation_method"
+                              value="venue"
+                              checked={fparticipationMethod === "venue"}
+                              onChange={() => setFparticipationMethod("venue")}
+                              className="w-4 h-4 text-primary border-gray-300 focus:ring-primary"
+                            />
+                            <span>会場で参加する</span>
+                          </label>
+                        )}
+                        {(seminar.format === "online" || seminar.format === "hybrid") && (
+                          <label className="flex items-center gap-3 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="modal-participation_method"
+                              value="online"
+                              checked={fparticipationMethod === "online"}
+                              onChange={() => setFparticipationMethod("online")}
+                              className="w-4 h-4 text-primary border-gray-300 focus:ring-primary"
+                            />
+                            <span>オンラインで参加する</span>
+                          </label>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   <Button type="submit" className="w-full" disabled={loadingModal}>
                     {loadingModal ? "更新中..." : "予約情報を更新する"}

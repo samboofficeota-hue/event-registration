@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { normalizeLineBreaks } from "@/lib/utils";
-import type { Seminar } from "@/lib/types";
+import type { Seminar, ParticipationMethod } from "@/lib/types";
 
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
@@ -37,6 +37,7 @@ interface ReservationData {
   department: string;
   phone: string;
   status: string;
+  participation_method?: ParticipationMethod;
 }
 
 export default function ManagePage({
@@ -54,12 +55,13 @@ export default function ManagePage({
   const [loading, setLoading] = useState(false);
   const [cancelled, setCancelled] = useState(false);
 
-  // フォーetimState
+  // フォーム state
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [company, setCompany] = useState("");
   const [department, setDepartment] = useState("");
   const [phone, setPhone] = useState("");
+  const [participationMethod, setParticipationMethod] = useState<ParticipationMethod | "">("");
 
   useEffect(() => {
     // セミナー情報を取得
@@ -84,6 +86,7 @@ export default function ManagePage({
             setCompany(found.company);
             setDepartment(found.department);
             setPhone(found.phone);
+            setParticipationMethod(found.participation_method || "");
           }
         })
         .catch(() => {});
@@ -105,6 +108,7 @@ export default function ManagePage({
           company,
           department,
           phone,
+          participation_method: participationMethod || undefined,
         }),
       });
       if (!res.ok) {
@@ -280,6 +284,41 @@ export default function ManagePage({
                 onChange={(e) => setPhone(e.target.value)}
               />
             </div>
+
+            {/* 参加方法（オンライン/会場/ハイブリッドに応じて表示） */}
+            {seminar.format && (seminar.format === "online" || seminar.format === "venue" || seminar.format === "hybrid") && (
+              <div className="space-y-2">
+                <Label>参加方法</Label>
+                <div className="flex flex-col gap-2">
+                  {(seminar.format === "venue" || seminar.format === "hybrid") && (
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="participation_method"
+                        value="venue"
+                        checked={participationMethod === "venue"}
+                        onChange={() => setParticipationMethod("venue")}
+                        className="w-4 h-4 text-primary border-gray-300 focus:ring-primary"
+                      />
+                      <span>会場で参加する</span>
+                    </label>
+                  )}
+                  {(seminar.format === "online" || seminar.format === "hybrid") && (
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="participation_method"
+                        value="online"
+                        checked={participationMethod === "online"}
+                        onChange={() => setParticipationMethod("online")}
+                        className="w-4 h-4 text-primary border-gray-300 focus:ring-primary"
+                      />
+                      <span>オンラインで参加する</span>
+                    </label>
+                  )}
+                </div>
+              </div>
+            )}
 
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "更新中..." : "予約情報を更新する"}

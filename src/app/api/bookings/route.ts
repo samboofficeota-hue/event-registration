@@ -34,7 +34,7 @@ function tenantFromReferer(request: NextRequest): TenantKey | undefined {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { seminar_id, name, email, company, department, phone, invitation_code, tenant } = body;
+    const { seminar_id, name, email, company, department, phone, invitation_code, participation_method, tenant } = body;
     const emailTrimmed = (email || "").trim().toLowerCase();
     let tenantKey = tenant && isTenantKey(tenant) ? tenant : undefined;
     if (!tenantKey) tenantKey = tenantFromReferer(request);
@@ -187,6 +187,22 @@ export async function POST(request: NextRequest) {
       receiptCount + 1
     );
 
+    // 参加方法: オンライン/会場のみはイベント形式に合わせる。ハイブリッドは申込者選択必須
+    const participationMethod =
+      seminar.format === "online"
+        ? "online"
+        : seminar.format === "venue"
+          ? "venue"
+          : seminar.format === "hybrid"
+            ? (participation_method === "venue" || participation_method === "online" ? participation_method : "")
+            : "";
+    if (seminar.format === "hybrid" && !participationMethod) {
+      return NextResponse.json(
+        { error: "参加方法（会場またはオンライン）を選択してください" },
+        { status: 400 }
+      );
+    }
+
     const reservationRow = [
       id,
       name,
@@ -200,6 +216,7 @@ export async function POST(request: NextRequest) {
       now,
       "",
       reservationNumber,
+      participationMethod || "",
     ];
 
     await appendRow(seminar.spreadsheet_id, "予約情報", reservationRow);
@@ -295,12 +312,12 @@ async function resolveBooking(
 }
 
 // ---------------------------------------------------------------------------
-// PUT: 予約情報の更新（氏名・メール・会社名・部署・電話番号）
+// PUT: 予約情報の更新（氏名・メール・会社名・部署・電話番号・参加方法）
 // ---------------------------------------------------------------------------
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { seminar_id, id, name, email, company, department, phone, tenant } = body;
+    const { seminar_id, id, name, email, company, department, phone, participation_method, tenant } = body;
     const tenantKey = tenant && isTenantKey(tenant) ? tenant : undefined;
 
     if (!seminar_id || !id) {
@@ -328,6 +345,7 @@ export async function PUT(request: NextRequest) {
       row[9],
       row[10] || "",
       row[11] || "", // 予約番号
+      participation_method !== undefined && (participation_method === "venue" || participation_method === "online") ? participation_method : (row[12] || ""), // 参加方法
     ];
 
     await updateRow(seminar.spreadsheet_id, "予約情報", reservationResult.rowIndex, updated);
@@ -340,6 +358,7 @@ export async function PUT(request: NextRequest) {
       company: updated[3],
       department: updated[4],
       phone: updated[5],
+      participation_method: (updated[12] === "venue" || updated[12] === "online") ? updated[12] : undefined,
     });
   } catch (error) {
     console.error("Error updating booking:", error);
@@ -374,6 +393,7 @@ export async function DELETE(request: NextRequest) {
       row[7], row[8], row[9],
       row[10] || "",
       row[11] || "", // 予約番号
+      row[12] || "", // 参加方法
     ];
 
     await updateRow(seminar.spreadsheet_id, "予約情報", reservationResult.rowIndex, updated);

@@ -40,6 +40,9 @@ export interface Seminar {
 // ---------------------------------------------------------------------------
 // セミナー専用スプレッドシート: 「予約情報」シート
 // ---------------------------------------------------------------------------
+/** 参加方法（ハイブリッド時は申込者が選択。オンライン/会場のみの場合はイベント形式に一致） */
+export type ParticipationMethod = "venue" | "online";
+
 export interface Reservation {
   id: string;
   name: string;
@@ -54,6 +57,8 @@ export interface Reservation {
   note: string;
   /** 予約番号（例: 2604-a1bc） */
   reservation_number?: string;
+  /** 参加方法: 会場 / オンライン（ハイブリッド時は必須。それ以外はイベント形式に応じて自動） */
+  participation_method?: ParticipationMethod;
 }
 
 // ---------------------------------------------------------------------------
@@ -98,4 +103,6 @@ export type BookingFormData = {
   company: string;
   department: string;
   phone: string;
+  /** 参加方法（ハイブリッド時のみ必須。online の場合は "online"、venue の場合は "venue"） */
+  participation_method?: ParticipationMethod;
 };

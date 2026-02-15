@@ -12,6 +12,7 @@ import { isTenantKey, getTenantConfig } from "@/lib/tenant-config";
 import type { Reservation } from "@/lib/types";
 
 function rowToReservation(row: string[]): Reservation {
+  const participation = row[12]?.trim();
   return {
     id: row[0] || "",
     name: row[1] || "",
@@ -25,6 +26,7 @@ function rowToReservation(row: string[]): Reservation {
     created_at: row[9] || "",
     note: row[10] || "",
     reservation_number: row[11] || undefined,
+    participation_method: participation === "venue" || participation === "online" ? participation : undefined,
   };
 }
 
