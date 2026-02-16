@@ -57,6 +57,16 @@ async function verifyAndDecodeToken(
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // workers.dev ドメインからカスタムドメインへリダイレクト
+  const hostname = request.headers.get("host") || "";
+  if (hostname.includes(".workers.dev")) {
+    const customDomain = "events.allianceforum.org";
+    const url = new URL(request.url);
+    url.hostname = customDomain;
+    url.protocol = "https:";
+    return NextResponse.redirect(url, 301); // 恒久的リダイレクト
+  }
+
   // テナント管理画面: /{tenant}/admin/*
   for (const tenant of TENANT_KEYS) {
     const adminPrefix = `/${tenant}/admin`;
@@ -100,10 +110,7 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/admin/:path*",
-    "/whgc-seminars/admin/:path*",
-    "/kgri-pic-center/admin/:path*",
-    "/aff-events/admin/:path*",
-    "/pic-courses/admin/:path*",
+    // すべてのリクエストに対して middleware を実行（workers.dev リダイレクトのため）
+    "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };
