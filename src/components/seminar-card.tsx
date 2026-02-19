@@ -118,10 +118,10 @@ export function SeminarCard({ seminar, index, onSelect }: SeminarCardProps) {
             </div>
 
             {/* 対象タグ */}
-            {seminar.target === "members_only" && (
+            {seminar.target && (
               <div className="flex flex-wrap gap-2">
                 <Badge variant="secondary" className="text-xs">
-                  会員限定
+                  {seminar.target === "members_only" ? "会員限定" : "一般公開"}
                 </Badge>
               </div>
             )}
