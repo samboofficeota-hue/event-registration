@@ -1,6 +1,6 @@
 "use client";
 
-import { AdminReservationsContent } from "@/components/manage-console-reservations-content";
+import { AdminReservationsContent } from "@/components/admin-reservations-content";
 
 export default function WhgcSeminarsAdminReservationsPage() {
   return (
