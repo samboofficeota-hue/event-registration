@@ -27,6 +27,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import type { Seminar, Reservation } from "@/lib/types";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -120,6 +127,7 @@ export function AdminReservationsContent({
 }: AdminReservationsContentProps) {
   const [seminars, setSeminars] = useState<SeminarWithSurveyStatus[]>([]);
   const [selectedSeminarId, setSelectedSeminarId] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingRes, setLoadingRes] = useState(false);
@@ -361,11 +369,12 @@ export function AdminReservationsContent({
                   <Button
                     type="button"
                     size="sm"
-                    variant={selectedSeminarId === s.id ? "default" : "outline"}
+                    variant="outline"
                     className="rounded-full px-4 py-2 text-[0.8125rem]"
-                    onClick={() =>
-                      setSelectedSeminarId(selectedSeminarId === s.id ? null : s.id)
-                    }
+                    onClick={() => {
+                      setSelectedSeminarId(s.id);
+                      setModalOpen(true);
+                    }}
                   >
                     予約一覧を見る
                     <ArrowRight className="ml-1 size-4" />
@@ -485,86 +494,85 @@ export function AdminReservationsContent({
         <p className="text-sm text-muted-foreground">セミナーがありません。</p>
       )}
 
-      {selectedSeminarId && (
-        <Card className="admin-card overflow-hidden">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg font-semibold">予約詳細</CardTitle>
-            <CardDescription className="text-[0.8125rem]">
+      <Dialog open={modalOpen} onOpenChange={(open) => {
+        setModalOpen(open);
+        if (!open) setSelectedSeminarId(null);
+      }}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>予約詳細</DialogTitle>
+            <DialogDescription>
               {seminars.find((s) => s.id === selectedSeminarId)?.title}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {loadingRes ? (
-              <p className="text-sm text-muted-foreground">読み込み中...</p>
-            ) : (
-              <>
-                <p className="text-sm text-muted-foreground">
-                  {reservations.length}件の予約
-                </p>
-                <Table className="rounded-lg border border-border">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>氏名</TableHead>
-                      <TableHead>メール</TableHead>
-                      <TableHead>会社名</TableHead>
-                      <TableHead>部署</TableHead>
-                      <TableHead>ステータス</TableHead>
-                      <TableHead>事前アンケート</TableHead>
-                      <TableHead>事後アンケート</TableHead>
-                      <TableHead>予約日時</TableHead>
+            </DialogDescription>
+          </DialogHeader>
+          {loadingRes ? (
+            <p className="text-sm text-muted-foreground">読み込み中...</p>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                {reservations.length}件の予約
+              </p>
+              <Table className="rounded-lg border border-border">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>氏名</TableHead>
+                    <TableHead>メール</TableHead>
+                    <TableHead>会社名</TableHead>
+                    <TableHead>部署</TableHead>
+                    <TableHead>ステータス</TableHead>
+                    <TableHead>事前アンケート</TableHead>
+                    <TableHead>事後アンケート</TableHead>
+                    <TableHead>予約日時</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {reservations.map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell className="font-medium">{r.name}</TableCell>
+                      <TableCell>{r.email}</TableCell>
+                      <TableCell>{r.company}</TableCell>
+                      <TableCell>{r.department}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            r.status === "confirmed" ? "default" : "destructive"
+                          }
+                        >
+                          {r.status === "confirmed" ? "確定" : "キャンセル"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {r.pre_survey_completed ? (
+                          <Badge variant="default">回答済</Badge>
+                        ) : (
+                          <Badge variant="outline">未回答</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {r.post_survey_completed ? (
+                          <Badge variant="default">回答済</Badge>
+                        ) : (
+                          <Badge variant="outline">未回答</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {r.created_at
+                          ? new Date(r.created_at).toLocaleDateString("ja-JP")
+                          : ""}
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {reservations.map((r) => (
-                      <TableRow key={r.id}>
-                        <TableCell className="font-medium">{r.name}</TableCell>
-                        <TableCell>{r.email}</TableCell>
-                        <TableCell>{r.company}</TableCell>
-                        <TableCell>{r.department}</TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              r.status === "confirmed"
-                                ? "default"
-                                : "destructive"
-                            }
-                          >
-                            {r.status === "confirmed" ? "確定" : "キャンセル"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {r.pre_survey_completed ? (
-                            <Badge variant="default">回答済</Badge>
-                          ) : (
-                            <Badge variant="outline">未回答</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {r.post_survey_completed ? (
-                            <Badge variant="default">回答済</Badge>
-                          ) : (
-                            <Badge variant="outline">未回答</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {r.created_at
-                            ? new Date(r.created_at).toLocaleDateString("ja-JP")
-                            : ""}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {reservations.length === 0 && (
-                  <p className="py-4 text-sm text-muted-foreground">
-                    このセミナーの予約はまだありません。
-                  </p>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
-      )}
+                  ))}
+                </TableBody>
+              </Table>
+              {reservations.length === 0 && (
+                <p className="py-4 text-sm text-muted-foreground">
+                  このセミナーの予約はまだありません。
+                </p>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
