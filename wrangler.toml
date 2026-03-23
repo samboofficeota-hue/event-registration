@@ -14,5 +14,4 @@ service = "event-registration"
 
 [vars]
 NEXT_PUBLIC_APP_URL = "https://events.allianceforum.org"
-# Resend テスト用アドレス（DNS認証不要）
-RESEND_FROM_EMAIL = "onboarding@resend.dev"
+RESEND_FROM_EMAIL = "noreply@events.allianceforum.org"
