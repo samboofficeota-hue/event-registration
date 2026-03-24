@@ -41,7 +41,6 @@ import { ja } from "date-fns/locale";
 import {
   FileEdit,
   Pencil,
-  ExternalLink,
   Ban,
   Plus,
   Clock,
@@ -253,7 +252,6 @@ export function AdminReservationsContent({
         {seminars.map((s) => {
           const hasPre = s.has_pre_survey ?? false;
           const hasPost = s.has_post_survey ?? false;
-          const hasSheet = !!s.spreadsheet_id;
           const date = new Date(s.date);
           return (
             <Card
@@ -454,18 +452,6 @@ export function AdminReservationsContent({
                         {statusLabel[s.status] ?? s.status}
                       </span>
                     ))}
-                  {hasSheet && (
-                    <a
-                      href={`https://docs.google.com/spreadsheets/d/${s.spreadsheet_id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <Button variant="outline" size="sm" className="gap-1.5 text-[0.8125rem]">
-                        <ExternalLink className="size-3.5" />
-                        スプシ
-                      </Button>
-                    </a>
-                  )}
                   {s.status !== "cancelled" &&
                     s.status !== "completed" && (
                     <Button
