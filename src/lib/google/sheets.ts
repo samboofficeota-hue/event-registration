@@ -1003,7 +1003,7 @@ export async function uploadImageToDrive(
   body.set(endBytes, offset);
 
   const response = await fetch(
-    `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id`,
+    `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id&supportsAllDrives=true`,
     {
       method: "POST",
       headers: {
@@ -1024,7 +1024,7 @@ export async function uploadImageToDrive(
 
   // ファイルを公開して閲覧URLを返す
   await fetch(
-    `https://www.googleapis.com/drive/v3/files/${fileId}/permissions`,
+    `https://www.googleapis.com/drive/v3/files/${fileId}/permissions?supportsAllDrives=true`,
     {
       method: "POST",
       headers: {
