@@ -35,6 +35,7 @@ const navEntries: NavEntry[] = [
       { path: "/email-schedules", label: "配信スケジュール", icon: "🗓️" },
     ],
   },
+  { path: "/newsletter", label: "メルマガ管理", icon: "📬" },
 ];
 
 interface AdminSidebarProps {
