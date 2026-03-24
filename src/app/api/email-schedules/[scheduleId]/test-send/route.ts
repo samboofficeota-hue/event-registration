@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getD1 } from "@/lib/d1";
+import { getD1, getSeminarByIdFromD1 } from "@/lib/d1";
 import type { EmailSchedule, EmailTemplate } from "@/lib/d1";
 import { verifyAdminRequest } from "@/lib/auth";
-import { renderTemplate, buildSeminarVars } from "@/lib/email/bulk";
-import { findMasterRowById, findMasterRowByIdForTenant } from "@/lib/google/sheets";
-import { rowToSeminar } from "@/lib/seminars";
+import { renderTemplate, buildSeminarVars, buildHtmlEmail } from "@/lib/email/bulk";
+import { d1SeminarToSeminar } from "@/lib/seminars";
 import { Resend } from "resend";
 
 // POST /api/email-schedules/[scheduleId]/test-send
-// 指定したメールアドレスへテスト送信する（D1ログ・ステータス変更なし）
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ scheduleId: string }> }
@@ -20,7 +18,6 @@ export async function POST(
     const { scheduleId } = await params;
     const body = await request.json().catch(() => ({}));
     const email: string = body.email ?? "";
-    const tenant: string | null = body.tenant ?? null;
 
     if (!email) {
       return NextResponse.json({ error: "送信先メールアドレスを指定してください" }, { status: 400 });
@@ -28,40 +25,38 @@ export async function POST(
 
     const db = await getD1();
 
-    const schedule = (await db
+    // スケジュール取得
+    const schedule = await db
       .prepare("SELECT * FROM email_schedules WHERE id = ?")
       .bind(Number(scheduleId))
-      .first() as any) as EmailSchedule | null;
+      .first() as EmailSchedule | null;
 
     if (!schedule) {
       return NextResponse.json({ error: "スケジュールが見つかりません" }, { status: 404 });
     }
 
-    const template = (await db
+    // テンプレート取得
+    const template = await db
       .prepare("SELECT * FROM email_templates WHERE id = ?")
       .bind(schedule.template_id)
-      .first() as any) as EmailTemplate | null;
+      .first() as EmailTemplate | null;
 
     if (!template) {
       return NextResponse.json({ error: "テンプレートが見つかりません" }, { status: 404 });
     }
 
-    // セミナー情報取得
-    const masterResult = tenant
-      ? await findMasterRowByIdForTenant(tenant, schedule.seminar_id)
-      : await findMasterRowById(schedule.seminar_id);
-
-    if (!masterResult) {
+    // セミナー情報取得（D1）
+    const seminarRow = await getSeminarByIdFromD1(schedule.seminar_id);
+    if (!seminarRow) {
       return NextResponse.json({ error: "セミナーが見つかりません" }, { status: 404 });
     }
-
-    const seminar = rowToSeminar(masterResult.values);
+    const seminar = d1SeminarToSeminar(seminarRow);
     const seminarVars = buildSeminarVars(seminar);
     const vars = { ...seminarVars, name: "（テスト）" };
 
     const subject = `【テスト送信】${renderTemplate(template.subject, vars)}`;
     const text = renderTemplate(template.body, vars);
-    const html = `<pre style="font-family:sans-serif;white-space:pre-wrap;line-height:1.7">${text}</pre>`;
+    const html = buildHtmlEmail(text);
 
     const apiKey = process.env.RESEND_API_KEY;
     if (!apiKey) throw new Error("RESEND_API_KEY is not set");
@@ -74,6 +69,7 @@ export async function POST(
       to: email,
       subject,
       html,
+      text,
     });
 
     if (error) throw new Error(error.message);

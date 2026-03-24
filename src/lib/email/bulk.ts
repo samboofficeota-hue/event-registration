@@ -11,17 +11,10 @@ import type { Seminar } from "@/lib/types";
 // テンプレート変数の置換
 // ---------------------------------------------------------------------------
 
-/**
- * テンプレート文字列内の {{変数名}} を vars の値で置換する。
- */
 export function renderTemplate(template: string, vars: Record<string, string>): string {
   return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => vars[key] ?? "");
 }
 
-/**
- * セミナー情報から変数マップを生成する。
- * 参加者ごとに異なる値（name）は別途マージして使う。
- */
 export function buildSeminarVars(seminar: Seminar): Record<string, string> {
   const date = seminar.date ? new Date(seminar.date) : null;
   const dateStr = date
@@ -35,9 +28,7 @@ export function buildSeminarVars(seminar: Seminar): Record<string, string> {
   };
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
-  const meetUrlLine = seminar.meet_url
-    ? `Meet URL：${seminar.meet_url}`
-    : "";
+  const meetUrlLine = seminar.meet_url ? `Meet URL：${seminar.meet_url}` : "";
 
   return {
     seminar_title: seminar.title ?? "",
@@ -53,7 +44,80 @@ export function buildSeminarVars(seminar: Seminar): Record<string, string> {
 }
 
 // ---------------------------------------------------------------------------
-// 参加者の取得（個別スプシの「予約情報」シートから）
+// HTML メール生成
+// ---------------------------------------------------------------------------
+
+/**
+ * プレーンテキストのメール本文から、レスポンシブ HTML メールを生成する。
+ * - URL を自動リンク化
+ * - 改行を <br> に変換
+ * - WHGC ブランドのヘッダー・フッター付き
+ */
+export function buildHtmlEmail(text: string): string {
+  // HTML 特殊文字をエスケープ
+  const escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  // URL を自動リンク化（エスケープ後に適用）
+  const withLinks = escaped.replace(
+    /(https?:\/\/[^\s&<>"]+)/g,
+    '<a href="$1" style="color:#6366f1;text-decoration:underline;word-break:break-all;">$1</a>'
+  );
+
+  // 改行を <br> に変換
+  const withBreaks = withLinks.replace(/\n/g, "<br>\n");
+
+  return `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WHGC</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Hiragino Kaku Gothic ProN',Meiryo,'Yu Gothic',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f4f5;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.08);">
+
+          <!-- ヘッダー -->
+          <tr>
+            <td style="background-color:#18181b;padding:20px 32px;">
+              <p style="margin:0;color:#ffffff;font-size:15px;font-weight:600;letter-spacing:0.04em;">
+                WHGC ゲームチェンジャーズ・フォーラム
+              </p>
+            </td>
+          </tr>
+
+          <!-- 本文 -->
+          <tr>
+            <td style="padding:32px;color:#18181b;font-size:15px;line-height:1.9;">
+              ${withBreaks}
+            </td>
+          </tr>
+
+          <!-- フッター -->
+          <tr>
+            <td style="padding:20px 32px;background-color:#fafafa;border-top:1px solid #e4e4e7;">
+              <p style="margin:0;color:#71717a;font-size:12px;line-height:1.8;">
+                このメールは WHGC ゲームチェンジャーズ・フォーラム より配信しています。<br>
+                ご不明な点は <a href="mailto:info@allianceforum.org" style="color:#71717a;">info@allianceforum.org</a> までお問い合わせください。
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+// ---------------------------------------------------------------------------
+// 参加者の取得
 // ---------------------------------------------------------------------------
 
 export interface Participant {
@@ -61,10 +125,6 @@ export interface Participant {
   email: string;
 }
 
-/**
- * セミナーIDから有効な参加者一覧を D1 より取得する。
- * ステータスが cancelled 以外の行を対象とする。
- */
 export async function getParticipants(seminarId: string): Promise<Participant[]> {
   const rows = await getRegistrationsBySeminarFromD1(seminarId);
   return rows
@@ -89,9 +149,6 @@ export interface BulkSendResult {
   }>;
 }
 
-/**
- * スケジュールに基づいて参加者全員にメールを一斉送信し、ログを D1 に記録する。
- */
 export async function executeBulkSend(
   db: D1Database,
   schedule: EmailSchedule,
@@ -99,21 +156,13 @@ export async function executeBulkSend(
   seminarId: string,
   tenant?: string | null
 ): Promise<BulkSendResult> {
-  // セミナー情報の取得（D1）
   const seminarRow = await getSeminarByIdFromD1(seminarId);
-  if (!seminarRow) {
-    throw new Error(`セミナーが見つかりません: ${seminarId}`);
-  }
+  if (!seminarRow) throw new Error(`セミナーが見つかりません: ${seminarId}`);
   const seminar = d1SeminarToSeminar(seminarRow);
 
-  // 参加者リストの取得（D1）
   const participants = await getParticipants(seminarId);
+  if (participants.length === 0) return { total: 0, success: 0, failed: 0, logs: [] };
 
-  if (participants.length === 0) {
-    return { total: 0, success: 0, failed: 0, logs: [] };
-  }
-
-  // Resend 初期化
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error("RESEND_API_KEY is not set");
   const resend = new Resend(apiKey);
@@ -121,22 +170,14 @@ export async function executeBulkSend(
   const fromEmail = process.env.RESEND_FROM_EMAIL ?? "noreply@events.allianceforum.org";
   const seminarVars = buildSeminarVars(seminar);
 
-  const result: BulkSendResult = {
-    total: participants.length,
-    success: 0,
-    failed: 0,
-    logs: [],
-  };
-
+  const result: BulkSendResult = { total: participants.length, success: 0, failed: 0, logs: [] };
   const now = new Date().toISOString();
 
   for (const participant of participants) {
     const vars = { ...seminarVars, name: participant.name };
     const subject = renderTemplate(template.subject, vars);
     const text = renderTemplate(template.body, vars);
-
-    // 改行を <br> に変換してシンプルな HTML メールにする
-    const html = `<pre style="font-family:sans-serif;white-space:pre-wrap;line-height:1.7">${text}</pre>`;
+    const html = buildHtmlEmail(text);
 
     try {
       const { data, error } = await resend.emails.send({
@@ -144,44 +185,31 @@ export async function executeBulkSend(
         to: participant.email,
         subject,
         html,
+        text, // プレーンテキスト版も併送（メーラー互換性のため）
       });
 
       if (error) throw new Error(error.message);
 
       result.success++;
-      result.logs.push({
-        recipient_email: participant.email,
-        recipient_name: participant.name,
-        status: "sent",
-        resend_id: data?.id,
-      });
+      result.logs.push({ recipient_email: participant.email, recipient_name: participant.name, status: "sent", resend_id: data?.id });
 
-      // D1 にログ記録
       await db.prepare(
-        `INSERT INTO email_send_logs
-         (schedule_id, seminar_id, recipient_email, recipient_name, status, resend_id, sent_at)
+        `INSERT INTO email_send_logs (schedule_id, seminar_id, recipient_email, recipient_name, status, resend_id, sent_at)
          VALUES (?, ?, ?, ?, 'sent', ?, ?)`
       ).bind(schedule.id, seminarId, participant.email, participant.name, data?.id ?? null, now).run();
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       result.failed++;
-      result.logs.push({
-        recipient_email: participant.email,
-        recipient_name: participant.name,
-        status: "failed",
-        error_message: errorMessage,
-      });
+      result.logs.push({ recipient_email: participant.email, recipient_name: participant.name, status: "failed", error_message: errorMessage });
 
       await db.prepare(
-        `INSERT INTO email_send_logs
-         (schedule_id, seminar_id, recipient_email, recipient_name, status, error_message, sent_at)
+        `INSERT INTO email_send_logs (schedule_id, seminar_id, recipient_email, recipient_name, status, error_message, sent_at)
          VALUES (?, ?, ?, ?, 'failed', ?, ?)`
       ).bind(schedule.id, seminarId, participant.email, participant.name, errorMessage, now).run();
     }
   }
 
-  // スケジュールのステータスを更新
   const finalStatus = result.failed === 0 ? "sent" : result.success > 0 ? "sent" : "failed";
   await db.prepare(
     `UPDATE email_schedules SET status = ?, sent_at = ?, updated_at = ? WHERE id = ?`

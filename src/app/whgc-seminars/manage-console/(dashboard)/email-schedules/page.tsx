@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import type { EmailSchedule } from "@/lib/d1";
-import { RefreshCw, CalendarDays, ExternalLink } from "lucide-react";
+import { RefreshCw, CalendarDays, ExternalLink, Clock, MapPin, Users, Video } from "lucide-react";
 
 const TENANT = "whgc-seminars";
 const ADMIN_BASE = "/whgc-seminars/manage-console";
@@ -29,6 +29,10 @@ const STATUS_BADGE: Record<string, { label: string; variant: "default" | "second
 };
 
 interface SeminarInfo { id: string; title: string; date: string; status: string; }
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type SeminarDetail = Record<string, any>;
+
 interface SeminarGroup { seminar: SeminarInfo; schedules: EmailSchedule[]; }
 interface TemplateModal {
   templateId: string | null;
@@ -36,12 +40,21 @@ interface TemplateModal {
   subject: string;
   body: string;
   seminarVars: Record<string, string> | null;
+  seminarDetail: SeminarDetail | null;
   activeTab: "edit" | "preview";
   loading: boolean;
   saving: boolean;
 }
 
-function buildClientVars(seminar: Record<string, string>): Record<string, string> {
+function resolveImageUrl(url: string | undefined): string | null {
+  if (!url) return null;
+  const match = url.match(/\/file\/d\/([^/]+)/);
+  if (match) return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w600`;
+  if (url.includes("drive.google.com")) return url;
+  return null;
+}
+
+function buildClientVars(seminar: SeminarDetail): Record<string, string> {
   const date = seminar.date ? new Date(seminar.date) : null;
   const dateStr = date
     ? `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 (${
@@ -70,7 +83,8 @@ function renderPreview(template: string, vars: Record<string, string>): string {
 
 const EMPTY_MODAL: TemplateModal = {
   templateId: null, seminarId: "", subject: "", body: "",
-  seminarVars: null, activeTab: "edit", loading: false, saving: false,
+  seminarVars: null, seminarDetail: null,
+  activeTab: "edit", loading: false, saving: false,
 };
 
 export default function EmailSchedulesPage() {
@@ -140,6 +154,7 @@ export default function EmailSchedulesPage() {
         subject: templateData.subject ?? "",
         body: templateData.body ?? "",
         seminarVars: seminarData ? buildClientVars(seminarData) : null,
+        seminarDetail: seminarData,
         loading: false,
       }));
     } catch (e) {
@@ -249,10 +264,20 @@ export default function EmailSchedulesPage() {
     ? renderPreview(templateModal.body, templateModal.seminarVars)
     : templateModal.body;
 
+  const s = templateModal.seminarDetail;
+  const seminarDate = s?.date ? new Date(s.date) : null;
+  const seminarDateStr = seminarDate
+    ? seminarDate.toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric", weekday: "short" })
+    : "—";
+  const seminarTimeStr = seminarDate
+    ? `${String(seminarDate.getHours()).padStart(2,"0")}:${String(seminarDate.getMinutes()).padStart(2,"0")} ～ ${s?.end_time ?? ""}`
+    : "";
+  const formatLabel: Record<string, string> = { online: "オンライン", venue: "会場", hybrid: "ハイブリッド" };
+  const imageUrl = resolveImageUrl(s?.image_url);
+
   return (
     <>
       <div className="space-y-6">
-
         {/* ページヘッダー */}
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -266,15 +291,13 @@ export default function EmailSchedulesPage() {
         </div>
 
         {/* フィルタータブ */}
-        <div className="flex gap-2 border-b border-border pb-0">
+        <div className="flex gap-2 border-b border-border">
           {(["pending", "sent", "all"] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
               className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                filter === f
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
+                filter === f ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
               {{ pending: "未送信", sent: "送信済", all: "すべて" }[f]}
@@ -282,15 +305,12 @@ export default function EmailSchedulesPage() {
           ))}
         </div>
 
-        {/* ローディング */}
         {loading && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <RefreshCw className="size-4 animate-spin" />
-            読み込み中...
+            <RefreshCw className="size-4 animate-spin" />読み込み中...
           </div>
         )}
 
-        {/* 空状態 */}
         {!loading && filteredGroups.length === 0 && (
           <div className="admin-card rounded-lg px-6 py-12 text-center">
             <p className="text-sm text-muted-foreground">
@@ -303,13 +323,9 @@ export default function EmailSchedulesPage() {
         <div className="space-y-4">
           {filteredGroups.map(({ seminar, schedules }) => (
             <div key={seminar.id} className="admin-card rounded-xl overflow-hidden">
-
-              {/* セミナーヘッダー */}
               <div className="flex items-center justify-between gap-4 border-b border-border bg-muted/20 px-5 py-4">
                 <div className="min-w-0 flex-1">
-                  <h2 className="line-clamp-1 text-sm font-semibold text-foreground">
-                    {seminar.title}
-                  </h2>
+                  <h2 className="line-clamp-1 text-sm font-semibold text-foreground">{seminar.title}</h2>
                   <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                     <CalendarDays className="size-3.5 shrink-0" />
                     開催日: {seminar.date ? new Date(seminar.date).toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" }) : "未設定"}
@@ -317,13 +333,11 @@ export default function EmailSchedulesPage() {
                 </div>
                 <Link href={`${ADMIN_BASE}/seminars/${seminar.id}/email-schedule`}>
                   <Button size="sm" variant="outline" className="gap-1.5 shrink-0">
-                    <ExternalLink className="size-3.5" />
-                    詳細
+                    <ExternalLink className="size-3.5" />詳細
                   </Button>
                 </Link>
               </div>
 
-              {/* スケジュール行 */}
               <div className="divide-y divide-border">
                 {schedules.map((schedule) => {
                   const statusInfo = STATUS_BADGE[schedule.status] ?? STATUS_BADGE.pending;
@@ -333,37 +347,23 @@ export default function EmailSchedulesPage() {
 
                   return (
                     <div key={schedule.id} className={`px-5 py-3.5 ${!schedule.enabled && !isSent ? "opacity-60" : ""}`}>
-
-                      {/* メイン行 */}
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-
-                        {/* 左：種別 + ステータス + トグル */}
                         <div className="flex items-center gap-2.5 min-w-0">
                           <span className="text-sm font-medium text-foreground shrink-0 w-28">
                             {TEMPLATE_LABELS[schedule.template_id] ?? schedule.template_id}
                           </span>
-                          <Badge variant={statusInfo.variant} className="text-xs shrink-0">
-                            {statusInfo.label}
-                          </Badge>
+                          <Badge variant={statusInfo.variant} className="text-xs shrink-0">{statusInfo.label}</Badge>
                           {!isSent && (
                             <button
                               onClick={() => handleToggleEnabled(seminar.id, schedule)}
-                              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
-                                schedule.enabled ? "bg-primary" : "bg-muted-foreground/30"
-                              }`}
+                              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${schedule.enabled ? "bg-primary" : "bg-muted-foreground/30"}`}
                               title={schedule.enabled ? "無効にする" : "有効にする"}
-                              aria-label={schedule.enabled ? "無効にする" : "有効にする"}
                             >
-                              <span
-                                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform ${
-                                  schedule.enabled ? "translate-x-[18px]" : "translate-x-0.5"
-                                }`}
-                              />
+                              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform ${schedule.enabled ? "translate-x-[18px]" : "translate-x-0.5"}`} />
                             </button>
                           )}
                         </div>
 
-                        {/* 右：送信日時 + アクション */}
                         {!isEditing && !isTestSendOpen && (
                           <div className="ml-auto flex flex-wrap items-center gap-2">
                             <span className="text-sm text-muted-foreground tabular-nums">
@@ -371,78 +371,44 @@ export default function EmailSchedulesPage() {
                             </span>
                             {!isSent && (
                               <>
-                                <Button size="sm" variant="ghost" className="h-8 px-3 text-xs" onClick={() => startEdit(schedule)}>
-                                  日時変更
-                                </Button>
-                                <Button size="sm" variant="ghost" className="h-8 px-3 text-xs" onClick={() => openTemplateModal(schedule.template_id, seminar.id)}>
-                                  文面確認・編集
-                                </Button>
-                                <Button size="sm" variant="outline" className="h-8 px-3 text-xs" onClick={() => startTestSend(schedule)}>
-                                  テスト送信
-                                </Button>
+                                <Button size="sm" variant="ghost" className="h-8 px-3 text-xs" onClick={() => startEdit(schedule)}>日時変更</Button>
+                                <Button size="sm" variant="ghost" className="h-8 px-3 text-xs" onClick={() => openTemplateModal(schedule.template_id, seminar.id)}>文面確認・編集</Button>
+                                <Button size="sm" variant="outline" className="h-8 px-3 text-xs" onClick={() => startTestSend(schedule)}>テスト送信</Button>
                               </>
                             )}
                             {isSent && schedule.sent_at && (
-                              <span className="text-xs text-muted-foreground">
-                                {new Date(schedule.sent_at).toLocaleDateString("ja-JP")} 送信済
-                              </span>
+                              <span className="text-xs text-muted-foreground">{new Date(schedule.sent_at).toLocaleDateString("ja-JP")} 送信済</span>
                             )}
                           </div>
                         )}
                       </div>
 
-                      {/* 日時変更フォーム */}
                       {isEditing && (
                         <div className="mt-3 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3">
                           <div className="space-y-1">
                             <Label className="text-xs font-medium">送信日</Label>
-                            <Input
-                              type="date"
-                              value={editValues.scheduled_date}
-                              onChange={(e) => setEditValues((v) => ({ ...v, scheduled_date: e.target.value }))}
-                              className="h-8 text-sm w-40"
-                            />
+                            <Input type="date" value={editValues.scheduled_date} onChange={(e) => setEditValues((v) => ({ ...v, scheduled_date: e.target.value }))} className="h-8 text-sm w-40" />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-xs font-medium">送信時刻</Label>
-                            <Input
-                              type="time"
-                              value={editValues.send_time}
-                              onChange={(e) => setEditValues((v) => ({ ...v, send_time: e.target.value }))}
-                              className="h-8 text-sm w-28"
-                            />
+                            <Input type="time" value={editValues.send_time} onChange={(e) => setEditValues((v) => ({ ...v, send_time: e.target.value }))} className="h-8 text-sm w-28" />
                           </div>
                           <div className="flex gap-2">
-                            <Button size="sm" className="h-8" onClick={() => handleSaveEdit(seminar.id, schedule.id)}>
-                              保存
-                            </Button>
-                            <Button size="sm" variant="outline" className="h-8" onClick={() => setEditingId(null)}>
-                              キャンセル
-                            </Button>
+                            <Button size="sm" className="h-8" onClick={() => handleSaveEdit(seminar.id, schedule.id)}>保存</Button>
+                            <Button size="sm" variant="outline" className="h-8" onClick={() => setEditingId(null)}>キャンセル</Button>
                           </div>
                         </div>
                       )}
 
-                      {/* テスト送信フォーム */}
                       {isTestSendOpen && (
                         <div className="mt-3 flex flex-wrap items-end gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3">
                           <div className="flex-1 space-y-1 min-w-48">
                             <Label className="text-xs font-medium">テスト送信先メールアドレス</Label>
-                            <Input
-                              type="email"
-                              placeholder="example@example.com"
-                              value={testEmail}
-                              onChange={(e) => setTestEmail(e.target.value)}
-                              className="h-8 text-sm"
-                            />
+                            <Input type="email" placeholder="example@example.com" value={testEmail} onChange={(e) => setTestEmail(e.target.value)} className="h-8 text-sm" />
                           </div>
                           <div className="flex gap-2">
-                            <Button size="sm" className="h-8" disabled={testSending} onClick={() => handleTestSend(schedule.id)}>
-                              {testSending ? "送信中..." : "送信"}
-                            </Button>
-                            <Button size="sm" variant="outline" className="h-8" onClick={() => setTestSendId(null)}>
-                              キャンセル
-                            </Button>
+                            <Button size="sm" className="h-8" disabled={testSending} onClick={() => handleTestSend(schedule.id)}>{testSending ? "送信中..." : "送信"}</Button>
+                            <Button size="sm" variant="outline" className="h-8" onClick={() => setTestSendId(null)}>キャンセル</Button>
                           </div>
                         </div>
                       )}
@@ -455,24 +421,25 @@ export default function EmailSchedulesPage() {
         </div>
       </div>
 
-      {/* 文面確認・編集モーダル */}
+      {/* ===== 文面確認・編集モーダル（2パネル） ===== */}
       {templateModal.templateId !== null && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
           onClick={(e) => { if (e.target === e.currentTarget) setTemplateModal(EMPTY_MODAL); }}
         >
-          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-xl border border-border bg-background shadow-xl">
+          <div className="flex max-h-[92vh] w-full max-w-5xl flex-col rounded-xl border border-border bg-background shadow-2xl overflow-hidden">
 
             {/* モーダルヘッダー */}
-            <div className="flex items-center justify-between border-b border-border px-5 py-4 shrink-0">
+            <div className="flex items-center justify-between border-b border-border bg-muted/20 px-6 py-4 shrink-0">
               <div>
                 <h2 className="text-base font-semibold text-foreground">メール文面確認・編集</h2>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {TEMPLATE_LABELS[templateModal.templateId] ?? templateModal.templateId}
+                  {s?.title && <> ｜ <span className="text-foreground/70">{s.title}</span></>}
                 </p>
               </div>
               <button
-                className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                 onClick={() => setTemplateModal(EMPTY_MODAL)}
                 aria-label="閉じる"
               >
@@ -482,96 +449,171 @@ export default function EmailSchedulesPage() {
               </button>
             </div>
 
-            {/* タブ */}
-            <div className="flex border-b border-border shrink-0">
-              {(["edit", "preview"] as const).map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setTemplateModal((prev) => ({ ...prev, activeTab: tab }))}
-                  className={`px-5 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                    templateModal.activeTab === tab
-                      ? "border-primary text-primary"
-                      : "border-transparent text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {tab === "edit" ? "編集" : "プレビュー（変数展開）"}
-                </button>
-              ))}
-            </div>
-
-            {/* モーダル本文 */}
             {templateModal.loading ? (
-              <div className="flex items-center justify-center gap-2 px-5 py-12 text-sm text-muted-foreground">
-                <RefreshCw className="size-4 animate-spin" />
-                読み込み中...
+              <div className="flex items-center justify-center gap-2 p-16 text-sm text-muted-foreground">
+                <RefreshCw className="size-4 animate-spin" />読み込み中...
               </div>
             ) : (
-              <div className="flex-1 overflow-y-auto px-5 py-5">
-                {templateModal.activeTab === "edit" ? (
-                  <div className="space-y-4">
-                    <div className="space-y-1.5">
-                      <Label className="text-sm font-medium">件名</Label>
-                      <Input
-                        value={templateModal.subject}
-                        onChange={(e) => setTemplateModal((prev) => ({ ...prev, subject: e.target.value }))}
-                        className="text-sm"
-                      />
+              /* ===== 2カラムレイアウト ===== */
+              <div className="flex flex-1 overflow-hidden divide-x divide-border min-h-0">
+
+                {/* 左パネル：セミナー情報（40%） */}
+                <div className="w-2/5 shrink-0 overflow-y-auto bg-muted/10">
+                  <div className="p-5 space-y-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">セミナー情報</p>
+
+                    {/* サムネイル */}
+                    {imageUrl && (
+                      <div className="overflow-hidden rounded-lg border border-border aspect-video bg-muted">
+                        <img src={imageUrl} alt={s?.title ?? ""} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                      </div>
+                    )}
+
+                    {/* タイトル */}
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">タイトル</p>
+                      <p className="text-sm font-semibold text-foreground leading-snug whitespace-pre-line">{s?.title ?? "—"}</p>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-sm font-medium">本文</Label>
-                      <Textarea
-                        value={templateModal.body}
-                        onChange={(e) => setTemplateModal((prev) => ({ ...prev, body: e.target.value }))}
-                        rows={18}
-                        className="font-mono text-sm resize-none"
-                      />
-                    </div>
-                    <div className="rounded-lg border border-border bg-muted/20 px-4 py-3">
-                      <p className="mb-1.5 text-xs font-medium text-muted-foreground">使用可能な変数</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {["{{name}}", "{{seminar_title}}", "{{date}}", "{{format}}", "{{speaker}}", "{{meet_url_line}}", "{{registration_url}}", "{{survey_url}}"].map((v) => (
-                          <code key={v} className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-foreground">{v}</code>
-                        ))}
+
+                    {/* 開催日時 */}
+                    <div className="flex items-start gap-2 text-sm">
+                      <CalendarDays className="size-4 shrink-0 text-primary mt-0.5" />
+                      <div>
+                        <p className="font-medium text-foreground">{seminarDateStr}</p>
+                        {seminarTimeStr && <p className="text-muted-foreground text-xs mt-0.5">{seminarTimeStr}</p>}
                       </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="space-y-1.5">
-                      <Label className="text-sm font-medium text-muted-foreground">件名（プレビュー）</Label>
-                      <div className="rounded-lg border border-border bg-muted/20 px-4 py-2.5 text-sm">
-                        {previewSubject || <span className="italic text-muted-foreground">（空）</span>}
+
+                    {/* 形式 */}
+                    {s?.format && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <MapPin className="size-4 shrink-0 text-pink-500" />
+                        <span className="text-foreground">{formatLabel[s.format] ?? s.format}</span>
                       </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-sm font-medium text-muted-foreground">本文（プレビュー）</Label>
-                      <div className="min-h-64 rounded-lg border border-border bg-muted/20 px-4 py-3 font-mono text-sm leading-relaxed whitespace-pre-wrap">
-                        {previewBody || <span className="italic text-muted-foreground">（空）</span>}
+                    )}
+
+                    {/* 登壇者 */}
+                    {s?.speaker && (
+                      <div className="flex items-start gap-2 text-sm">
+                        <Users className="size-4 shrink-0 text-cyan-500 mt-0.5" />
+                        <div>
+                          <p className="font-medium text-foreground">{s.speaker}</p>
+                          {s.speaker_title && <p className="text-xs text-muted-foreground mt-0.5">{s.speaker_title}</p>}
+                        </div>
                       </div>
-                    </div>
-                    {!templateModal.seminarVars && (
-                      <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400">
-                        セミナー情報を取得できなかったため、変数は展開されていません
-                      </p>
+                    )}
+
+                    {/* Meet URL */}
+                    {s?.meet_url && (
+                      <div className="flex items-start gap-2 text-sm">
+                        <Video className="size-4 shrink-0 text-green-500 mt-0.5" />
+                        <a href={s.meet_url} target="_blank" rel="noopener noreferrer" className="text-primary underline break-all text-xs">{s.meet_url}</a>
+                      </div>
+                    )}
+
+                    {/* 定員 */}
+                    {s?.capacity != null && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Clock className="size-4 shrink-0 text-orange-400" />
+                        <span className="text-foreground">定員 <span className="font-semibold">{s.capacity}</span> 名
+                          {s.current_bookings != null && <span className="text-muted-foreground ml-1">（申込 {s.current_bookings} 名）</span>}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* 説明 */}
+                    {s?.description && (
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">説明</p>
+                        <p className="text-xs text-foreground leading-relaxed whitespace-pre-line line-clamp-6">{s.description}</p>
+                      </div>
                     )}
                   </div>
-                )}
+                </div>
+
+                {/* 右パネル：メール文面（60%） */}
+                <div className="flex flex-col flex-1 min-w-0 min-h-0">
+
+                  {/* タブ */}
+                  <div className="flex border-b border-border shrink-0">
+                    {(["edit", "preview"] as const).map((tab) => (
+                      <button
+                        key={tab}
+                        onClick={() => setTemplateModal((prev) => ({ ...prev, activeTab: tab }))}
+                        className={`px-5 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                          templateModal.activeTab === tab
+                            ? "border-primary text-primary"
+                            : "border-transparent text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {tab === "edit" ? "編集" : "プレビュー（変数展開）"}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* 本文エリア */}
+                  <div className="flex-1 overflow-y-auto px-5 py-5">
+                    {templateModal.activeTab === "edit" ? (
+                      <div className="space-y-4">
+                        <div className="space-y-1.5">
+                          <Label className="text-sm font-medium">件名</Label>
+                          <Input
+                            value={templateModal.subject}
+                            onChange={(e) => setTemplateModal((prev) => ({ ...prev, subject: e.target.value }))}
+                            className="text-sm"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-sm font-medium">本文</Label>
+                          <Textarea
+                            value={templateModal.body}
+                            onChange={(e) => setTemplateModal((prev) => ({ ...prev, body: e.target.value }))}
+                            rows={16}
+                            className="font-mono text-sm resize-none"
+                          />
+                        </div>
+                        <div className="rounded-lg border border-border bg-muted/20 px-4 py-3">
+                          <p className="mb-2 text-xs font-medium text-muted-foreground">使用可能な変数</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {["{{name}}", "{{seminar_title}}", "{{date}}", "{{format}}", "{{speaker}}", "{{meet_url_line}}", "{{registration_url}}", "{{survey_url}}"].map((v) => (
+                              <code key={v} className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-foreground">{v}</code>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="space-y-1.5">
+                          <Label className="text-sm font-medium text-muted-foreground">件名（プレビュー）</Label>
+                          <div className="rounded-lg border border-border bg-muted/20 px-4 py-2.5 text-sm font-medium">
+                            {previewSubject || <span className="italic text-muted-foreground">（空）</span>}
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-sm font-medium text-muted-foreground">本文（プレビュー）</Label>
+                          <div className="min-h-48 rounded-lg border border-border bg-muted/20 px-4 py-3 font-mono text-sm leading-relaxed whitespace-pre-wrap">
+                            {previewBody || <span className="italic text-muted-foreground">（空）</span>}
+                          </div>
+                        </div>
+                        {!templateModal.seminarVars && (
+                          <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400">
+                            セミナー情報を取得できなかったため、変数は展開されていません
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* フッター */}
+                  <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-4 shrink-0">
+                    <Button variant="outline" size="sm" onClick={() => setTemplateModal(EMPTY_MODAL)}>閉じる</Button>
+                    <Button size="sm" disabled={templateModal.loading || templateModal.saving} onClick={handleSaveTemplate}>
+                      {templateModal.saving ? "保存中..." : "保存"}
+                    </Button>
+                  </div>
+                </div>
               </div>
             )}
-
-            {/* モーダルフッター */}
-            <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-4 shrink-0">
-              <Button variant="outline" size="sm" onClick={() => setTemplateModal(EMPTY_MODAL)}>
-                閉じる
-              </Button>
-              <Button
-                size="sm"
-                disabled={templateModal.loading || templateModal.saving}
-                onClick={handleSaveTemplate}
-              >
-                {templateModal.saving ? "保存中..." : "保存"}
-              </Button>
-            </div>
           </div>
         </div>
       )}
