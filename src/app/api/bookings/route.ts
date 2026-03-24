@@ -19,6 +19,7 @@ import { getTenantConfig, isTenantKey, TENANT_KEYS, type TenantKey } from "@/lib
 import { getSurveyQuestions } from "@/lib/survey/storage";
 import { encodeSurveyToken } from "@/lib/survey-token";
 import { verifyAdminRequest } from "@/lib/auth";
+import { checkBookingRateLimit, checkInvitationCodeRateLimit, getClientIp } from "@/lib/ratelimit";
 
 /** body に tenant が無い場合、Referer のパスからテナントを補完（クライアント渡し忘れ対策） */
 function tenantFromReferer(request: NextRequest): TenantKey | undefined {
@@ -34,6 +35,16 @@ function tenantFromReferer(request: NextRequest): TenantKey | undefined {
 
 export async function POST(request: NextRequest) {
   try {
+    // IP ベースのレート制限（メールスパム・容量枯渇対策: 10回/分）
+    const ip = getClientIp(request);
+    const bookingAllowed = await checkBookingRateLimit(ip);
+    if (!bookingAllowed) {
+      return NextResponse.json(
+        { error: "リクエストが多すぎます。しばらく経ってから再試行してください。" },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const { seminar_id, name, email, company, department, phone, invitation_code, participation_method, tenant } = body;
     const emailTrimmed = (email || "").trim().toLowerCase();
@@ -75,6 +86,14 @@ export async function POST(request: NextRequest) {
         const code = (invitation_code || "").trim();
         const expected = (seminar.invitation_code || "").trim().toLowerCase();
         if (!expected || code.toLowerCase() !== expected) {
+          // 招待コードのブルートフォース対策（5回/5分/IP）
+          const invAllowed = await checkInvitationCodeRateLimit(ip);
+          if (!invAllowed) {
+            return NextResponse.json(
+              { error: "リクエストが多すぎます。しばらく経ってから再試行してください。" },
+              { status: 429 }
+            );
+          }
           const message = code
             ? "招待コードが正しくありません"
             : "会員企業のメールアドレス、または招待コードが必要です";
