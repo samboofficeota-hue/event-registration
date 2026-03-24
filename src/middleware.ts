@@ -89,8 +89,9 @@ export async function middleware(request: NextRequest) {
     if (!token || !secret) {
       return NextResponse.redirect(new URL("/manage-console/login", request.url));
     }
-    const { valid } = await verifyAndDecodeToken(token, secret);
-    if (!valid) {
+    const { valid, payload } = await verifyAndDecodeToken(token, secret);
+    // 共通管理者は tenant フィールドなしの JWT のみ許可（テナント管理者の侵入を防ぐ）
+    if (!valid || payload?.tenant) {
       return NextResponse.redirect(new URL("/manage-console/login", request.url));
     }
   }
