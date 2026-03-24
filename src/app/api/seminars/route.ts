@@ -1,64 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
-import {
-  getMasterData,
-  getMasterDataForTenant,
-  appendMasterRow,
-  appendMasterRowForTenant,
-  createSeminarSpreadsheet,
-  appendRow,
-  ensureMasterHeaders,
-  ensureSeminarSpreadsheetHeaders,
-} from "@/lib/google/sheets";
 import { createCalendarEvent } from "@/lib/google/calendar";
-import { rowToSeminar } from "@/lib/seminars";
+import { createSeminarSpreadsheet } from "@/lib/google/sheets";
+import { d1SeminarToSeminar } from "@/lib/seminars";
 import { getSurveyQuestions } from "@/lib/survey/storage";
 import { isTenantKey, getTenantConfig } from "@/lib/tenant-config";
 import { verifyAdminRequest } from "@/lib/auth";
+import { generateEmailSchedules } from "@/lib/email/generate-schedules";
+import {
+  getD1,
+  getSeminarsByTenantFromD1,
+  insertSeminarToD1,
+  type D1Seminar,
+} from "@/lib/d1";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const tenant = searchParams.get("tenant");
-    const statusFilter = searchParams.get("status");
+    const tenant = searchParams.get("tenant") || "default";
+    const statusFilter = searchParams.get("status") || undefined;
     const withSurveyStatus = searchParams.get("with_survey_status") === "1";
     const isAdmin = await verifyAdminRequest(request);
 
-    // マスタースプレッドシートのヘッダーを最新形式に自動修正
-    const tenantKeyGet = tenant && isTenantKey(tenant) ? tenant : undefined;
-    try {
-      if (tenantKeyGet) {
-        const tc = getTenantConfig(tenantKeyGet);
-        if (tc) await ensureMasterHeaders(tc.masterSpreadsheetId);
-      } else {
-        const defaultMasterId = process.env.GOOGLE_SPREADSHEET_ID;
-        if (defaultMasterId) await ensureMasterHeaders(defaultMasterId);
-      }
-    } catch (headerErr) {
-      console.error("Failed to ensure master headers (GET):", headerErr);
-    }
+    // 正規化: tenant が有効なキーでなければ "default"
+    const tenantKey = isTenantKey(tenant) ? tenant : "default";
 
-    const rows = tenant
-      ? await getMasterDataForTenant(tenant)
-      : await getMasterData();
-    if (!rows) {
-      return NextResponse.json(
-        tenant ? [] : { error: "マスターデータの取得に失敗しました" },
-        { status: tenant ? 200 : 500 }
-      );
-    }
-    let seminars = rows.slice(1).filter((row) => row[0]?.trim()).map(rowToSeminar);
-
-    if (statusFilter) {
-      seminars = seminars.filter((s) => s.status === statusFilter);
-    }
+    const rows = await getSeminarsByTenantFromD1(tenantKey, statusFilter);
+    let seminars = rows.map(d1SeminarToSeminar);
 
     seminars.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     // 非管理者には招待コードを返さない
-    const maskInvitationCode = !isAdmin
-      ? <T extends { invitation_code: string }>(s: T) => ({ ...s, invitation_code: "" })
-      : <T>(s: T) => s;
+    if (!isAdmin) {
+      seminars = seminars.map((s) => ({ ...s, invitation_code: "" }));
+    }
 
     if (withSurveyStatus) {
       const withStatus = await Promise.all(
@@ -77,10 +52,10 @@ export async function GET(request: NextRequest) {
           };
         })
       );
-      return NextResponse.json(withStatus.map(maskInvitationCode));
+      return NextResponse.json(withStatus);
     }
 
-    return NextResponse.json(seminars.map(maskInvitationCode));
+    return NextResponse.json(seminars);
   } catch (error) {
     console.error("Error fetching seminars:", error);
     return NextResponse.json({ error: "セミナー一覧の取得に失敗しました" }, { status: 500 });
@@ -109,7 +84,7 @@ export async function POST(request: NextRequest) {
       invitation_code,
       tenant,
     } = body;
-    const tenantKey = tenant && isTenantKey(tenant) ? tenant : undefined;
+    const tenantKey = tenant && isTenantKey(tenant) ? tenant : "default";
 
     if (!title || !date || !speaker) {
       return NextResponse.json(
@@ -117,6 +92,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
     const endTimeVal = (end_time || "").toString().trim();
     const cap = Number(capacity) || 100;
 
@@ -131,10 +107,9 @@ export async function POST(request: NextRequest) {
       console.error("Calendar event creation failed:", calError);
     }
 
-    // 2. セミナー専用スプレッドシートを自動作成（テナントの場合はテナント用フォルダに配置）
-    const tenantConfig = tenantKey ? getTenantConfig(tenantKey) : null;
+    // 2. セミナー専用スプレッドシートを作成（アンケート用）
+    const tenantConfig = tenantKey !== "default" ? getTenantConfig(tenantKey) : null;
     const tenantFolderId = tenantConfig?.driveFolderId || undefined;
-    console.log("[seminars/POST] tenantKey:", tenantKey, "driveFolderId:", tenantConfig?.driveFolderId, "tenantFolderId:", tenantFolderId);
     let spreadsheetId = "";
     try {
       spreadsheetId = await createSeminarSpreadsheet(title, tenantFolderId);
@@ -148,82 +123,43 @@ export async function POST(request: NextRequest) {
 
     const formatVal = ["venue", "online", "hybrid"].includes(format) ? format : "online";
     const targetVal = ["members_only", "public"].includes(target) ? target : "public";
-
-    // 2.5. マスタースプレッドシートのヘッダーを最新形式に自動修正
-    try {
-      if (tenantConfig) {
-        await ensureMasterHeaders(tenantConfig.masterSpreadsheetId);
-      } else {
-        const defaultMasterId = process.env.GOOGLE_SPREADSHEET_ID;
-        if (defaultMasterId) await ensureMasterHeaders(defaultMasterId);
-      }
-    } catch (headerErr) {
-      console.error("Failed to ensure master headers:", headerErr);
-    }
-
-    // 3. セミナー専用スプレッドシートの「イベント情報」シートにも書き込む
-    // 列順: A:id … R:updated_at S:参考URL
     const now = new Date().toISOString();
     const id = uuidv4();
     const invitationCodeVal = (invitation_code ?? "").toString().trim();
-    try {
-      await appendRow(spreadsheetId, "イベント情報", [
-        id,
-        title,
-        description || "",
-        date,
-        endTimeVal,
-        String(cap),
-        "0",
-        speaker || "",
-        meetUrl,
-        calendarEventId,
-        status || "draft",
-        spreadsheetId,
-        speaker_title || "",
-        formatVal,
-        targetVal,
-        invitationCodeVal,    // P: 招待コード
-        "",                   // Q: image_url
-        now,                  // R: created_at
-        now,                  // S: updated_at
-        speaker_reference_url || "",  // T: 参考URL
-      ]);
-    } catch (err) {
-      console.error("Failed to write event info:", err);
-    }
 
-    // 4. マスタースプレッドシートに登録（20列: 招待コードをP列に追加）
-    const masterRow = [
+    const seminar: D1Seminar = {
       id,
+      tenant: tenantKey,
       title,
-      description || "",
+      description: description || "",
       date,
-      endTimeVal,
-      String(cap),
-      "0",
-      speaker || "",
-      meetUrl,
-      calendarEventId,
-      status || "draft",
-      spreadsheetId,
-      speaker_title || "",
-      formatVal,
-      targetVal,
-      invitationCodeVal,
-      "",
-      now,
-      now,
-      speaker_reference_url || "",
-    ];
+      end_time: endTimeVal,
+      capacity: cap,
+      current_bookings: 0,
+      speaker: speaker || "",
+      speaker_title: speaker_title || "",
+      speaker_reference_url: speaker_reference_url || "",
+      format: formatVal,
+      target: targetVal,
+      invitation_code: invitationCodeVal,
+      image_url: "",
+      meet_url: meetUrl,
+      calendar_event_id: calendarEventId,
+      status: status || "draft",
+      spreadsheet_id: spreadsheetId,
+      created_at: now,
+      updated_at: now,
+    };
 
-    if (tenantKey) {
-      await appendMasterRowForTenant(tenantKey, masterRow);
-    } else {
-      await appendMasterRow(masterRow);
+    // 3. D1 に登録
+    await insertSeminarToD1(seminar);
+
+    // 4. メール配信スケジュールを自動生成
+    if (date) {
+      generateEmailSchedules(id, date).catch(() => {});
     }
 
-    return NextResponse.json(rowToSeminar(masterRow), { status: 201 });
+    return NextResponse.json(d1SeminarToSeminar(seminar), { status: 201 });
   } catch (error) {
     console.error("Error creating seminar:", error);
     return NextResponse.json({ error: "セミナーの作成に失敗しました" }, { status: 500 });

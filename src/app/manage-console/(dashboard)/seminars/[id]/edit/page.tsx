@@ -363,6 +363,14 @@ export default function EditSeminarPage({
               >
                 一覧に戻る
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                onClick={() => router.push(`/manage-console/seminars/${id}/email-schedule`)}
+              >
+                📨 メール配信設定
+              </Button>
             </div>
           </form>
         </CardContent>

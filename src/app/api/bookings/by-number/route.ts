@@ -1,132 +1,62 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  findReservationByNumber,
-  findReservationByNumberForTenant,
-  getSheetData,
-  getMasterData,
-  getMasterDataForTenant,
-} from "@/lib/google/sheets";
-import { rowToSeminar } from "@/lib/seminars";
+import { getSeminarByIdFromD1, getRegistrationByNumberFromD1 } from "@/lib/d1";
+import { d1SeminarToSeminar } from "@/lib/seminars";
 import { isValidReservationNumberFormat } from "@/lib/reservation-number";
-import { isTenantKey, getTenantConfig } from "@/lib/tenant-config";
 import type { Reservation } from "@/lib/types";
 
-function rowToReservation(row: string[]): Reservation {
-  const participation = row[12]?.trim();
-  return {
-    id: row[0] || "",
-    name: row[1] || "",
-    email: row[2] || "",
-    company: row[3] || "",
-    department: row[4] || "",
-    phone: row[5] || "",
-    status: (row[6] as Reservation["status"]) || "confirmed",
-    pre_survey_completed: row[7] === "TRUE",
-    post_survey_completed: row[8] === "TRUE",
-    created_at: row[9] || "",
-    note: row[10] || "",
-    reservation_number: row[11] || undefined,
-    participation_method: participation === "venue" || participation === "online" ? participation : undefined,
-  };
-}
-
 /**
- * GET: 予約番号で予約を検索し、seminar_id と reservation_id を返す。
- * 照合結果は区別しない（見つからない場合も同じメッセージ）。
+ * GET: 予約番号（＋メール）で予約を検索し、seminar_id と reservation_id を返す。
  */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const number = searchParams.get("number")?.trim();
-    const tenant = searchParams.get("tenant");
-    const tenantKey = tenant && isTenantKey(tenant) ? tenant : undefined;
+    const emailParam = searchParams.get("email")?.trim().toLowerCase();
 
     if (!number) {
-      return NextResponse.json(
-        { error: "予約番号を入力してください" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "予約番号を入力してください" }, { status: 400 });
     }
-
     if (!isValidReservationNumberFormat(number)) {
-      return NextResponse.json(
-        { error: "予約番号が見つかりません" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "予約番号が見つかりません" }, { status: 404 });
     }
 
-    const tenantConfig = tenantKey ? getTenantConfig(tenantKey) : null;
-    const index = tenantConfig
-      ? await findReservationByNumberForTenant(tenantConfig.masterSpreadsheetId, number)
-      : await findReservationByNumber(number);
-    if (!index) {
-      return NextResponse.json(
-        { error: "予約番号が見つかりません" },
-        { status: 404 }
-      );
+    const reg = await getRegistrationByNumberFromD1(number);
+    if (!reg || reg.status === "cancelled") {
+      return NextResponse.json({ error: "予約番号が見つかりません" }, { status: 404 });
     }
 
-    const masterRows = tenantKey
-      ? await getMasterDataForTenant(tenantKey)
-      : await getMasterData();
-    if (!masterRows) {
-      return NextResponse.json(
-        { error: "予約番号が見つかりません" },
-        { status: 404 }
-      );
+    // メールアドレスで本人確認
+    if (!emailParam || reg.email.trim().toLowerCase() !== emailParam) {
+      return NextResponse.json({ error: "予約番号が見つかりません" }, { status: 404 });
     }
-    const seminarRow = masterRows.slice(1).find(
-      (r) => (r[11] || "").trim() === index.spreadsheet_id
-    );
+
+    const seminarRow = await getSeminarByIdFromD1(reg.seminar_id);
     if (!seminarRow) {
-      return NextResponse.json(
-        { error: "予約番号が見つかりません" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "予約番号が見つかりません" }, { status: 404 });
     }
+    const seminar = d1SeminarToSeminar(seminarRow);
 
-    const seminar = rowToSeminar(seminarRow);
-    const reservationRows = await getSheetData(
-      index.spreadsheet_id,
-      "予約情報"
-    );
-    const reservationRow = reservationRows
-      .slice(1)
-      .find((r) => (r[0] || "").trim() === index.reservation_id);
-    if (!reservationRow) {
-      return NextResponse.json(
-        { error: "予約番号が見つかりません" },
-        { status: 404 }
-      );
-    }
-
-    if (reservationRow[6] === "cancelled") {
-      return NextResponse.json(
-        { error: "予約番号が見つかりません" },
-        { status: 404 }
-      );
-    }
-
-    const reservation = rowToReservation(reservationRow);
-
-    // メールアドレスで本人確認（必須。大文字小文字を無視して照合）
-    const emailParam = searchParams.get("email")?.trim().toLowerCase();
-    if (!emailParam) {
-      return NextResponse.json(
-        { error: "予約番号が見つかりません" },
-        { status: 404 }
-      );
-    }
-    if (reservation.email.trim().toLowerCase() !== emailParam) {
-      return NextResponse.json(
-        { error: "予約番号が見つかりません" },
-        { status: 404 }
-      );
-    }
+    const participation = reg.participation_method?.trim();
+    const reservation: Reservation = {
+      id: reg.id,
+      name: reg.name,
+      email: reg.email,
+      company: reg.company,
+      department: reg.department,
+      phone: reg.phone,
+      status: reg.status as Reservation["status"],
+      pre_survey_completed: reg.pre_survey_completed === 1,
+      post_survey_completed: reg.post_survey_completed === 1,
+      created_at: reg.created_at,
+      note: reg.note,
+      reservation_number: reg.reservation_number || undefined,
+      participation_method:
+        participation === "venue" || participation === "online" ? participation : undefined,
+    };
 
     return NextResponse.json({
       seminar_id: seminar.id,
-      reservation_id: index.reservation_id,
+      reservation_id: reg.id,
       seminar: {
         id: seminar.id,
         title: seminar.title,
@@ -136,9 +66,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("[bookings/by-number]", error);
-    return NextResponse.json(
-      { error: "予約番号が見つかりません" },
-      { status: 404 }
-    );
+    return NextResponse.json({ error: "予約番号が見つかりません" }, { status: 404 });
   }
 }

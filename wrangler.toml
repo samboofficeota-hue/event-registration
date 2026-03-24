@@ -12,6 +12,14 @@ binding = "ASSETS"
 binding = "WORKER_SELF_REFERENCE"
 service = "event-registration"
 
+[[d1_databases]]
+binding = "DB"
+database_name = "event-registration-db"
+database_id = "33f750e6-a120-410c-af39-e3e5d23b5576"
+
+[triggers]
+crons = ["0 1 * * *"]
+
 [vars]
 NEXT_PUBLIC_APP_URL = "https://events.allianceforum.org"
 RESEND_FROM_EMAIL = "noreply@events.allianceforum.org"

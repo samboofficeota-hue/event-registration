@@ -1,27 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
-import {
-  findMasterRowById,
-  findMasterRowByIdForTenant,
-  appendRow,
-  updateCell,
-  findRowById,
-  updateRow,
-  getSheetData,
-  appendReservationIndex,
-  appendReservationIndexToMaster,
-} from "@/lib/google/sheets";
 import { sendReservationConfirmation, sendCancellationNotification } from "@/lib/email/resend";
-import { rowToSeminar } from "@/lib/seminars";
+import { d1SeminarToSeminar } from "@/lib/seminars";
 import { isMemberDomainEmail } from "@/lib/member-domains";
 import { generateReservationNumber } from "@/lib/reservation-number";
-import { getTenantConfig, isTenantKey, TENANT_KEYS, type TenantKey } from "@/lib/tenant-config";
+import { isTenantKey, TENANT_KEYS, type TenantKey } from "@/lib/tenant-config";
 import { getSurveyQuestions } from "@/lib/survey/storage";
 import { encodeSurveyToken } from "@/lib/survey-token";
 import { verifyAdminRequest } from "@/lib/auth";
 import { checkBookingRateLimit, checkInvitationCodeRateLimit, getClientIp } from "@/lib/ratelimit";
+import {
+  getSeminarByIdFromD1,
+  updateSeminarInD1,
+  getRegistrationsBySeminarFromD1,
+  insertRegistrationToD1,
+  getRegistrationByIdFromD1,
+  updateRegistrationInD1,
+  type D1Registration,
+} from "@/lib/d1";
 
-/** body に tenant が無い場合、Referer のパスからテナントを補完（クライアント渡し忘れ対策） */
+/** body に tenant が無い場合、Referer のパスからテナントを補完 */
 function tenantFromReferer(request: NextRequest): TenantKey | undefined {
   const referer = request.headers.get("referer") || request.headers.get("origin");
   if (!referer) return undefined;
@@ -33,9 +31,40 @@ function tenantFromReferer(request: NextRequest): TenantKey | undefined {
   }
 }
 
+/** Googleカレンダー「イベントを追加」URL */
+function buildCalendarAddUrl(
+  date: string,
+  end_time: string,
+  title: string,
+  meet_url: string
+): string | undefined {
+  if (!date) return undefined;
+  const m = String(date).match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})/);
+  if (!m) return undefined;
+  const [, y, mo, d, h, min] = m.map(Number);
+  const jstMs = Date.UTC(y, mo - 1, d, h, min, 0);
+  const utcStart = new Date(jstMs - 9 * 60 * 60 * 1000);
+  const endMatch = (end_time || "").match(/^(\d{2}):(\d{2})$/);
+  const endH = endMatch ? Number(endMatch[1]) : h + 1;
+  const endMin = endMatch ? Number(endMatch[2]) : min;
+  const jstEndMs = Date.UTC(y, mo - 1, d, endH, endMin, 0);
+  const utcEnd = new Date(jstEndMs - 9 * 60 * 60 * 1000);
+  const fmt = (dt: Date) =>
+    `${dt.getUTCFullYear()}${String(dt.getUTCMonth() + 1).padStart(2, "0")}${String(dt.getUTCDate()).padStart(2, "0")}T${String(dt.getUTCHours()).padStart(2, "0")}${String(dt.getUTCMinutes()).padStart(2, "0")}${String(dt.getUTCSeconds()).padStart(2, "0")}Z`;
+  const calParams = new URLSearchParams({
+    action: "TEMPLATE",
+    text: title || "セミナー",
+    dates: `${fmt(utcStart)}/${fmt(utcEnd)}`,
+  });
+  if (meet_url) calParams.set("location", meet_url);
+  return `https://calendar.google.com/calendar/render?${calParams.toString()}`;
+}
+
+// ---------------------------------------------------------------------------
+// POST: 新規予約
+// ---------------------------------------------------------------------------
 export async function POST(request: NextRequest) {
   try {
-    // IP ベースのレート制限（メールスパム・容量枯渇対策: 10回/分）
     const ip = getClientIp(request);
     const bookingAllowed = await checkBookingRateLimit(ip);
     if (!bookingAllowed) {
@@ -50,43 +79,32 @@ export async function POST(request: NextRequest) {
     const emailTrimmed = (email || "").trim().toLowerCase();
     let tenantKey = tenant && isTenantKey(tenant) ? tenant : undefined;
     if (!tenantKey) tenantKey = tenantFromReferer(request);
+    const tenantVal = tenantKey || "default";
 
     if (!seminar_id || !name || !email) {
       return NextResponse.json({ error: "必須項目が不足しています" }, { status: 400 });
     }
 
-    const seminarResult = tenantKey
-      ? await findMasterRowByIdForTenant(tenantKey, seminar_id)
-      : await findMasterRowById(seminar_id);
-    if (!seminarResult) {
+    const seminarRow = await getSeminarByIdFromD1(seminar_id);
+    if (!seminarRow) {
       return NextResponse.json({ error: "セミナーが見つかりません" }, { status: 404 });
     }
-
-    const tenantConfig = tenantKey ? getTenantConfig(tenantKey) : null;
-    const masterSpreadsheetId = tenantConfig?.masterSpreadsheetId ?? process.env.GOOGLE_SPREADSHEET_ID!;
-
-    const seminar = rowToSeminar(seminarResult.values);
+    const seminar = d1SeminarToSeminar(seminarRow);
 
     if (seminar.status !== "published") {
       return NextResponse.json({ error: "このセミナーは現在予約を受け付けていません" }, { status: 400 });
     }
-
     if (seminar.current_bookings >= seminar.capacity) {
       return NextResponse.json({ error: "定員に達しました" }, { status: 400 });
     }
 
-    if (!seminar.spreadsheet_id) {
-      return NextResponse.json({ error: "セミナー用スプレッドシートが見つかりません" }, { status: 500 });
-    }
-
-    // 会員限定セミナー: 会員企業ドメイン or 招待コードで受付
+    // 会員限定チェック
     if (seminar.target === "members_only") {
       const isMember = await isMemberDomainEmail(email, tenantKey);
       if (!isMember) {
         const code = (invitation_code || "").trim();
         const expected = (seminar.invitation_code || "").trim().toLowerCase();
         if (!expected || code.toLowerCase() !== expected) {
-          // 招待コードのブルートフォース対策（5回/5分/IP）
           const invAllowed = await checkInvitationCodeRateLimit(ip);
           if (!invAllowed) {
             return NextResponse.json(
@@ -97,56 +115,21 @@ export async function POST(request: NextRequest) {
           const message = code
             ? "招待コードが正しくありません"
             : "会員企業のメールアドレス、または招待コードが必要です";
-          return NextResponse.json(
-            { error: message },
-            { status: 403 }
-          );
+          return NextResponse.json({ error: message }, { status: 403 });
         }
       }
     }
-
-    // 重複申込チェック（同一セミナー・同一メール・確定）
-    const existingRows = await getSheetData(seminar.spreadsheet_id, "予約情報");
-    const duplicate = existingRows.slice(1).find(
-      (r) => r[2]?.trim().toLowerCase() === emailTrimmed && r[6] === "confirmed"
-    );
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const manageUrl = tenantKey
       ? `${appUrl}/${tenantKey}/booking/manage`
       : `${appUrl}/booking/manage`;
-    const date = new Date(seminar.date);
-    const formattedDate = `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 
-    // Googleカレンダー「イベントを追加」URL（予約完了メールの「カレンダーに登録」用）
-    // スプレッドシートの日時は JST で扱うため、JST → UTC に変換して dates を生成する
-    const buildCalendarAddUrl = (): string | undefined => {
-      if (!seminar.date) return undefined;
-      const m = String(seminar.date).match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})/);
-      if (!m) return undefined;
-      const [, y, mo, d, h, min] = m.map(Number);
-      // 日時を JST として解釈し、UTC のミリ秒に変換（JST = UTC+9 → 9時間引く）
-      const jstMs = Date.UTC(y, mo - 1, d, h, min, 0);
-      const utcStart = new Date(jstMs - 9 * 60 * 60 * 1000);
-      // end_time ("HH:mm") から終了UTC を計算
-      const endMatch = (seminar.end_time || "").match(/^(\d{2}):(\d{2})$/);
-      const endH = endMatch ? Number(endMatch[1]) : h + 1;
-      const endMin = endMatch ? Number(endMatch[2]) : min;
-      const jstEndMs = Date.UTC(y, mo - 1, d, endH, endMin, 0);
-      const utcEnd = new Date(jstEndMs - 9 * 60 * 60 * 1000);
-      const fmt = (date: Date) =>
-        `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, "0")}${String(date.getUTCDate()).padStart(2, "0")}T${String(date.getUTCHours()).padStart(2, "0")}${String(date.getUTCMinutes()).padStart(2, "0")}${String(date.getUTCSeconds()).padStart(2, "0")}Z`;
-      const params = new URLSearchParams({
-        action: "TEMPLATE",
-        text: seminar.title || "セミナー",
-        dates: `${fmt(utcStart)}/${fmt(utcEnd)}`,
-      });
-      if (seminar.meet_url) params.set("location", seminar.meet_url);
-      return `https://calendar.google.com/calendar/render?${params.toString()}`;
-    };
-    const calendarAddUrl = buildCalendarAddUrl();
+    const dateObj = new Date(seminar.date);
+    const formattedDate = `${dateObj.getFullYear()}年${dateObj.getMonth() + 1}月${dateObj.getDate()}日 ${String(dateObj.getHours()).padStart(2, "0")}:${String(dateObj.getMinutes()).padStart(2, "0")}`;
+    const calendarAddUrl = buildCalendarAddUrl(seminar.date, seminar.end_time, seminar.title, seminar.meet_url);
 
-    // 事前アンケートの存在確認
+    // 事前アンケート存在確認
     let hasPreSurvey = false;
     if (seminar.spreadsheet_id) {
       try {
@@ -157,9 +140,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 重複申込チェック
+    const existingRegs = await getRegistrationsBySeminarFromD1(seminar_id);
+    const duplicate = existingRegs.find(
+      (r) => r.email.trim().toLowerCase() === emailTrimmed && r.status === "confirmed"
+    );
+
     if (duplicate) {
-      const existingId = duplicate[0];
-      const existingNumber = duplicate[11] || "";
       try {
         await sendReservationConfirmation(
           {
@@ -167,9 +154,9 @@ export async function POST(request: NextRequest) {
             name,
             seminarTitle: seminar.title,
             seminarDate: formattedDate,
-            reservationNumber: existingNumber,
-            reservationId: existingId,
-            preSurveyUrl: `${appUrl}/survey/pre/${encodeSurveyToken(seminar_id, existingId)}`,
+            reservationNumber: duplicate.reservation_number,
+            reservationId: duplicate.id,
+            preSurveyUrl: `${appUrl}/survey/pre/${encodeSurveyToken(seminar_id, duplicate.id)}`,
             manageUrl,
             meetUrl: seminar.meet_url || undefined,
             calendarAddUrl: calendarAddUrl || undefined,
@@ -183,11 +170,11 @@ export async function POST(request: NextRequest) {
       }
       return NextResponse.json(
         {
-          id: existingId,
+          id: duplicate.id,
           seminar_id,
           name,
           email,
-          reservation_number: existingNumber || undefined,
+          reservation_number: duplicate.reservation_number || undefined,
           meet_url: seminar.meet_url,
           seminar_title: seminar.title,
           seminar_date: seminar.date,
@@ -199,15 +186,10 @@ export async function POST(request: NextRequest) {
 
     const now = new Date().toISOString();
     const id = uuidv4();
+    const receiptCount = existingRegs.length;
+    const reservationNumber = generateReservationNumber(seminar.date, seminar.id, receiptCount + 1);
 
-    const receiptCount = Math.max(0, existingRows.length - 1);
-    const reservationNumber = generateReservationNumber(
-      seminar.date,
-      seminar.id,
-      receiptCount + 1
-    );
-
-    // 参加方法: オンライン/会場のみはイベント形式に合わせる。ハイブリッドは申込者選択必須
+    // 参加方法
     const participationMethod =
       seminar.format === "online"
         ? "online"
@@ -223,44 +205,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const reservationRow = [
+    const registration: D1Registration = {
       id,
+      seminar_id,
+      tenant: tenantVal,
+      reservation_number: reservationNumber,
       name,
       email,
-      company || "",
-      department || "",
-      phone || "",
-      "confirmed",
-      "FALSE",
-      "FALSE",
-      now,
-      "",
-      reservationNumber,
-      participationMethod || "",
-    ];
+      company: company || "",
+      department: department || "",
+      phone: phone || "",
+      status: "confirmed",
+      participation_method: participationMethod || "",
+      pre_survey_completed: 0,
+      post_survey_completed: 0,
+      note: "",
+      created_at: now,
+    };
 
-    await appendRow(seminar.spreadsheet_id, "予約情報", reservationRow);
-    if (tenantKey && tenantConfig) {
-      await appendReservationIndexToMaster(
-        tenantConfig.masterSpreadsheetId,
-        reservationNumber,
-        seminar.spreadsheet_id,
-        id
-      );
-    } else {
-      await appendReservationIndex(reservationNumber, seminar.spreadsheet_id, id);
-    }
+    await insertRegistrationToD1(registration);
 
-    await updateCell(
-      masterSpreadsheetId,
-      "セミナー一覧",
-      seminarResult.rowIndex,
-      6,
-      String(seminar.current_bookings + 1)
-    );
+    // current_bookings を更新
+    await updateSeminarInD1(seminar_id, {
+      current_bookings: seminar.current_bookings + 1,
+      updated_at: now,
+    });
 
-    const preSurveyUrlForNew = `${appUrl}/survey/pre/${encodeSurveyToken(seminar_id, id)}`;
-
+    const preSurveyUrl = `${appUrl}/survey/pre/${encodeSurveyToken(seminar_id, id)}`;
     try {
       await sendReservationConfirmation(
         {
@@ -270,7 +241,7 @@ export async function POST(request: NextRequest) {
           seminarDate: formattedDate,
           reservationNumber,
           reservationId: id,
-          preSurveyUrl: preSurveyUrlForNew,
+          preSurveyUrl,
           manageUrl,
           meetUrl: seminar.meet_url || undefined,
           calendarAddUrl: calendarAddUrl || undefined,
@@ -303,36 +274,7 @@ export async function POST(request: NextRequest) {
 }
 
 // ---------------------------------------------------------------------------
-// 共通: セミナー情報と予約行を検索して返す
-// ---------------------------------------------------------------------------
-async function resolveBooking(
-  seminarId: string,
-  reservationId: string,
-  tenant?: string
-) {
-  const seminarResult =
-    tenant && isTenantKey(tenant)
-      ? await findMasterRowByIdForTenant(tenant, seminarId)
-      : await findMasterRowById(seminarId);
-  if (!seminarResult) return { error: "セミナーが見つかりません", status: 404 } as const;
-
-  const seminar = rowToSeminar(seminarResult.values);
-  if (!seminar.spreadsheet_id) {
-    return { error: "セミナー用スプレッドシートが見つかりません", status: 500 } as const;
-  }
-
-  const reservationResult = await findRowById(seminar.spreadsheet_id, "予約情報", reservationId);
-  if (!reservationResult) return { error: "予約が見つかりません", status: 404 } as const;
-
-  if (reservationResult.values[6] === "cancelled") {
-    return { error: "この予約は既にキャンセルされています", status: 400 } as const;
-  }
-
-  return { seminar, seminarResult, reservationResult } as const;
-}
-
-// ---------------------------------------------------------------------------
-// PUT: 予約情報の更新（氏名・メール・会社名・部署・電話番号・参加方法）
+// PUT: 予約情報の更新
 // ---------------------------------------------------------------------------
 export async function PUT(request: NextRequest) {
   try {
@@ -344,13 +286,13 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "seminar_id と予約ID が必要です" }, { status: 400 });
     }
 
-    const result = await resolveBooking(seminar_id, id, tenantKey);
-    if ("error" in result) {
-      return NextResponse.json({ error: result.error }, { status: result.status });
+    const reg = await getRegistrationByIdFromD1(id);
+    if (!reg) {
+      return NextResponse.json({ error: "予約が見つかりません" }, { status: 404 });
     }
-
-    const { seminar, reservationResult } = result;
-    const row = reservationResult.values;
+    if (reg.status === "cancelled") {
+      return NextResponse.json({ error: "この予約は既にキャンセルされています" }, { status: 400 });
+    }
 
     // 管理者でない場合はメールアドレスで所有者確認
     const isAdmin = await verifyAdminRequest(request);
@@ -358,39 +300,33 @@ export async function PUT(request: NextRequest) {
       if (!owner_email) {
         return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
       }
-      const storedEmail = (row[2] || "").trim().toLowerCase();
-      if (owner_email.trim().toLowerCase() !== storedEmail) {
+      if (owner_email.trim().toLowerCase() !== reg.email.trim().toLowerCase()) {
         return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
       }
     }
 
-    const updated = [
-      row[0],
-      name ?? row[1],
-      email ?? row[2],
-      company ?? row[3],
-      department ?? row[4],
-      phone ?? row[5],
-      row[6],
-      row[7],
-      row[8],
-      row[9],
-      row[10] || "",
-      row[11] || "", // 予約番号
-      participation_method !== undefined && (participation_method === "venue" || participation_method === "online") ? participation_method : (row[12] || ""), // 参加方法
-    ];
+    const pmVal = participation_method === "venue" || participation_method === "online"
+      ? participation_method
+      : reg.participation_method;
 
-    await updateRow(seminar.spreadsheet_id, "予約情報", reservationResult.rowIndex, updated);
+    await updateRegistrationInD1(id, {
+      name: name ?? reg.name,
+      email: email ?? reg.email,
+      company: company ?? reg.company,
+      department: department ?? reg.department,
+      phone: phone ?? reg.phone,
+      participation_method: pmVal,
+    });
 
     return NextResponse.json({
       id,
       seminar_id,
-      name: updated[1],
-      email: updated[2],
-      company: updated[3],
-      department: updated[4],
-      phone: updated[5],
-      participation_method: (updated[12] === "venue" || updated[12] === "online") ? updated[12] : undefined,
+      name: name ?? reg.name,
+      email: email ?? reg.email,
+      company: company ?? reg.company,
+      department: department ?? reg.department,
+      phone: phone ?? reg.phone,
+      participation_method: pmVal || undefined,
     });
   } catch (error) {
     console.error("Error updating booking:", error);
@@ -411,13 +347,19 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "seminar_id と予約ID が必要です" }, { status: 400 });
     }
 
-    const result = await resolveBooking(seminar_id, id, tenantKey);
-    if ("error" in result) {
-      return NextResponse.json({ error: result.error }, { status: result.status });
+    const reg = await getRegistrationByIdFromD1(id);
+    if (!reg) {
+      return NextResponse.json({ error: "予約が見つかりません" }, { status: 404 });
+    }
+    if (reg.status === "cancelled") {
+      return NextResponse.json({ error: "この予約は既にキャンセルされています" }, { status: 400 });
     }
 
-    const { seminar, seminarResult, reservationResult } = result;
-    const row = reservationResult.values;
+    const seminarRow = await getSeminarByIdFromD1(seminar_id);
+    if (!seminarRow) {
+      return NextResponse.json({ error: "セミナーが見つかりません" }, { status: 404 });
+    }
+    const seminar = d1SeminarToSeminar(seminarRow);
 
     // 管理者でない場合はメールアドレスで所有者確認
     const isAdmin = await verifyAdminRequest(request);
@@ -425,51 +367,33 @@ export async function DELETE(request: NextRequest) {
       if (!email) {
         return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
       }
-      const storedEmail = (row[2] || "").trim().toLowerCase();
-      if (email.trim().toLowerCase() !== storedEmail) {
+      if (email.trim().toLowerCase() !== reg.email.trim().toLowerCase()) {
         return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
       }
     }
 
-    const updated = [
-      row[0], row[1], row[2], row[3], row[4], row[5],
-      "cancelled",
-      row[7], row[8], row[9],
-      row[10] || "",
-      row[11] || "", // 予約番号
-      row[12] || "", // 参加方法
-    ];
+    const now = new Date().toISOString();
+    await updateRegistrationInD1(id, { status: "cancelled" });
 
-    await updateRow(seminar.spreadsheet_id, "予約情報", reservationResult.rowIndex, updated);
-
-    // マスターの current_bookings をデクリメント
-    const tenantConfig = tenantKey ? getTenantConfig(tenantKey) : null;
-    const masterSpreadsheetIdForDelete =
-      tenantConfig?.masterSpreadsheetId ?? process.env.GOOGLE_SPREADSHEET_ID!;
-    const currentBookings = parseInt(seminarResult.values[6] || "0", 10);
-    await updateCell(
-      masterSpreadsheetIdForDelete,
-      "セミナー一覧",
-      seminarResult.rowIndex,
-      6,
-      String(Math.max(0, currentBookings - 1))
-    );
+    // current_bookings をデクリメント
+    await updateSeminarInD1(seminar_id, {
+      current_bookings: Math.max(0, seminar.current_bookings - 1),
+      updated_at: now,
+    });
 
     try {
       await sendCancellationNotification(
         {
-          to: row[2],
-          name: row[1],
+          to: reg.email,
+          name: reg.name,
           seminarTitle: seminar.title,
           reservationId: id,
-          reservationNumber: row[11] || undefined,
+          reservationNumber: reg.reservation_number || undefined,
         },
         tenantKey
       );
-
-      console.log(`[Booking] Cancellation email sent to ${row[2]}`);
+      console.log(`[Booking] Cancellation email sent to ${reg.email}`);
     } catch (emailError) {
-      // メール送信失敗はログに記録するが、キャンセル自体は成功として返す
       console.error("[Booking] Failed to send cancellation email:", emailError);
     }
 

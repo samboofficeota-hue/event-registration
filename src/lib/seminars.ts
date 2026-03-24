@@ -1,23 +1,45 @@
-import { getMasterData, findMasterRowById, getSheetData } from "@/lib/google/sheets";
-import { getTenantConfig } from "@/lib/tenant-config";
+import {
+  getSeminarByIdFromD1,
+  getSeminarsByTenantFromD1,
+  type D1Seminar,
+} from "@/lib/d1";
 import type { Seminar } from "@/lib/types";
 
-// マスタースプレッドシート「セミナー一覧」シートの列順 (20列固定):
-// A:ID  B:title  C:description  D:date  E:end_time  F:capacity  G:current_bookings
-// H:speaker  I:meet_url  J:calendar_event_id  K:status  L:spreadsheet_id
-// M:speaker_title  N:format  O:target  P:invitation_code  Q:image_url
-// R:created_at  S:updated_at  T:speaker_reference_url
+// ---------------------------------------------------------------------------
+// D1Seminar → Seminar 変換
+// ---------------------------------------------------------------------------
+export function d1SeminarToSeminar(row: D1Seminar): Seminar {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    date: row.date,
+    end_time: row.end_time,
+    capacity: row.capacity,
+    current_bookings: row.current_bookings,
+    speaker: row.speaker,
+    speaker_title: row.speaker_title,
+    speaker_reference_url: row.speaker_reference_url,
+    format: row.format as Seminar["format"],
+    target: row.target as Seminar["target"],
+    invitation_code: row.invitation_code,
+    image_url: row.image_url,
+    meet_url: row.meet_url,
+    calendar_event_id: row.calendar_event_id,
+    status: row.status as Seminar["status"],
+    spreadsheet_id: row.spreadsheet_id,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
 
-/**
- * シートの1行を Seminar オブジェクトに変換する。
- * Google Sheets は末尾の空セルを省略して返す場合があるため、
- * 安全に参照できるよう 20 列までパディングする。
- */
+// ---------------------------------------------------------------------------
+// Google Sheets 時代の rowToSeminar は後方互換のため保持
+// （移行スクリプト内で使用）
+// ---------------------------------------------------------------------------
 export function rowToSeminar(row: string[]): Seminar {
-  // 20列未満の場合は空文字で埋める（Google Sheets が末尾空セルを省略する対策）
   const r = [...row];
   while (r.length < 20) r.push("");
-
   return {
     id: r[0],
     title: r[1],
@@ -42,15 +64,18 @@ export function rowToSeminar(row: string[]): Seminar {
   };
 }
 
+// ---------------------------------------------------------------------------
+// D1 ベースのデータ取得
+// ---------------------------------------------------------------------------
+
 /**
- * マスタースプレッドシートから1つのセミナーを ID で取得する。
- * Server Component から直接呼べる（APIルートへのself-fetchを経由しない）。
+ * ID でセミナーを1件取得（D1）
  */
 export async function getSeminarById(id: string): Promise<Seminar | null> {
   try {
-    const result = await findMasterRowById(id);
-    if (!result) return null;
-    return rowToSeminar(result.values);
+    const row = await getSeminarByIdFromD1(id);
+    if (!row) return null;
+    return d1SeminarToSeminar(row);
   } catch (err) {
     console.error("[getSeminarById] failed for id:", id, err);
     return null;
@@ -58,19 +83,12 @@ export async function getSeminarById(id: string): Promise<Seminar | null> {
 }
 
 /**
- * マスタースプレッドシートから公開中のセミナー一覧を取得する。
- * Server Component から直接呼べる（APIルートへのself-fetchを経由しない）。
+ * デフォルトテナントの公開中セミナー一覧（D1）
  */
 export async function getPublishedSeminars(): Promise<Seminar[]> {
   try {
-    const rows = await getMasterData();
-    const seminars = rows
-      .slice(1)
-      .filter((row) => row[0]?.trim())
-      .map(rowToSeminar)
-      .filter((s) => s.status === "published");
-
-    // 日付の近い順（昇順＝直近の日付が先）
+    const rows = await getSeminarsByTenantFromD1("default", "published");
+    const seminars = rows.map(d1SeminarToSeminar);
     seminars.sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     );
@@ -81,26 +99,14 @@ export async function getPublishedSeminars(): Promise<Seminar[]> {
 }
 
 /**
- * 指定テナントのマスターから公開中のセミナー一覧を取得する。
- * テナント未設定の場合は空配列を返す。
- * 各セミナーに tenant を付与し、予約APIで確実にテナントを渡せるようにする。
+ * テナント指定で公開中セミナー一覧（D1）
  */
 export async function getPublishedSeminarsForTenant(
   tenant: string
 ): Promise<Seminar[]> {
-  const config = getTenantConfig(tenant);
-  if (!config) return [];
   try {
-    const rows = await getSheetData(
-      config.masterSpreadsheetId,
-      "セミナー一覧"
-    );
-    const seminars = rows
-      .slice(1)
-      .filter((row) => row[0]?.trim())
-      .map((row) => ({ ...rowToSeminar(row), tenant }))
-      .filter((s) => s.status === "published");
-
+    const rows = await getSeminarsByTenantFromD1(tenant, "published");
+    const seminars = rows.map((r) => ({ ...d1SeminarToSeminar(r), tenant }));
     seminars.sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     );

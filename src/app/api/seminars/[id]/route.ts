@@ -1,27 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  findMasterRowById,
-  findMasterRowByIdForTenant,
-  updateMasterRow,
-  updateMasterRowForTenant,
-  findRowById,
-  updateRow,
-  ensureSeminarSpreadsheetHeaders,
-} from "@/lib/google/sheets";
 import { updateCalendarEvent, deleteCalendarEvent } from "@/lib/google/calendar";
-import { rowToSeminar } from "@/lib/seminars";
+import { d1SeminarToSeminar } from "@/lib/seminars";
 import { isTenantKey } from "@/lib/tenant-config";
 import { verifyAdminRequest } from "@/lib/auth";
-
-async function resolveMasterRow(
-  id: string,
-  tenant?: string | null
-): Promise<{ rowIndex: number; values: string[] } | null> {
-  if (tenant && isTenantKey(tenant)) {
-    return findMasterRowByIdForTenant(tenant, id);
-  }
-  return findMasterRowById(id);
-}
+import { generateEmailSchedules } from "@/lib/email/generate-schedules";
+import {
+  getSeminarByIdFromD1,
+  updateSeminarInD1,
+  type D1Seminar,
+} from "@/lib/d1";
 
 export async function GET(
   request: NextRequest,
@@ -29,14 +16,13 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const tenant = new URL(request.url).searchParams.get("tenant");
-    const result = await resolveMasterRow(id, tenant);
+    const row = await getSeminarByIdFromD1(id);
 
-    if (!result) {
+    if (!row) {
       return NextResponse.json({ error: "セミナーが見つかりません" }, { status: 404 });
     }
 
-    const seminar = rowToSeminar(result.values);
+    const seminar = d1SeminarToSeminar(row);
     const isAdmin = await verifyAdminRequest(request);
     if (!isAdmin) {
       seminar.invitation_code = "";
@@ -59,76 +45,57 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const tenant = body.tenant && isTenantKey(body.tenant) ? body.tenant : null;
-    const result = await resolveMasterRow(id, tenant);
 
-    if (!result) {
+    const current = await getSeminarByIdFromD1(id);
+    if (!current) {
       return NextResponse.json({ error: "セミナーが見つかりません" }, { status: 404 });
     }
 
-    const current = rowToSeminar(result.values);
     const now = new Date().toISOString();
-
-    const updated: string[] = [
-      id,
-      body.title ?? current.title,
-      body.description ?? current.description,
-      body.date ?? current.date,
-      body.end_time ?? current.end_time,
-      String(body.capacity ?? current.capacity),
-      String(current.current_bookings),
-      body.speaker ?? current.speaker,
-      body.meet_url ?? current.meet_url,
-      current.calendar_event_id,
-      body.status ?? current.status,
-      current.spreadsheet_id,
-      body.speaker_title ?? current.speaker_title,
-      body.format ?? current.format,
-      body.target ?? current.target,
-      (body.invitation_code ?? current.invitation_code ?? "").trim(),
-      current.image_url,
-      current.created_at,
-      now,
-      body.speaker_reference_url ?? current.speaker_reference_url ?? "",
-    ];
+    const updates: Partial<D1Seminar> = {
+      title: body.title ?? current.title,
+      description: body.description ?? current.description,
+      date: body.date ?? current.date,
+      end_time: body.end_time ?? current.end_time,
+      capacity: body.capacity != null ? Number(body.capacity) : current.capacity,
+      speaker: body.speaker ?? current.speaker,
+      speaker_title: body.speaker_title ?? current.speaker_title,
+      speaker_reference_url: body.speaker_reference_url ?? current.speaker_reference_url,
+      format: body.format ?? current.format,
+      target: body.target ?? current.target,
+      invitation_code: body.invitation_code != null
+        ? body.invitation_code.trim()
+        : current.invitation_code,
+      status: body.status ?? current.status,
+      meet_url: body.meet_url ?? current.meet_url,
+      updated_at: now,
+    };
 
     // Calendar イベント更新
     if (current.calendar_event_id && (body.date || body.title || body.end_time)) {
       try {
         await updateCalendarEvent(
           current.calendar_event_id,
-          body.title ?? current.title,
-          body.date ?? current.date,
-          body.end_time ?? current.end_time,
-          body.description ?? current.description
+          updates.title!,
+          updates.date!,
+          updates.end_time!,
+          updates.description!
         );
       } catch (calError) {
         console.error("Calendar update failed:", calError);
       }
     }
 
-    if (tenant) {
-      await updateMasterRowForTenant(tenant, result.rowIndex, updated);
-    } else {
-      await updateMasterRow(result.rowIndex, updated);
+    await updateSeminarInD1(id, updates);
+
+    // メール配信スケジュールの日付を自動再計算
+    const newDate = body.date ?? current.date;
+    if (newDate) {
+      generateEmailSchedules(id, newDate).catch(() => {});
     }
 
-    // 個別イベントスプレッドシートの「イベント情報」シートも更新
-    if (current.spreadsheet_id) {
-      try {
-        // ヘッダーを最新形式に自動修正
-        await ensureSeminarSpreadsheetHeaders(current.spreadsheet_id);
-        const individualResult = await findRowById(current.spreadsheet_id, "イベント情報", id);
-        if (individualResult) {
-          await updateRow(current.spreadsheet_id, "イベント情報", individualResult.rowIndex, updated);
-          console.log("[Seminar Update] Individual spreadsheet synced");
-        }
-      } catch (err) {
-        console.error("[Seminar Update] Failed to sync individual spreadsheet:", err);
-      }
-    }
-
-    return NextResponse.json(rowToSeminar(updated));
+    const updated = { ...current, ...updates };
+    return NextResponse.json(d1SeminarToSeminar(updated as D1Seminar));
   } catch (error) {
     console.error("Error updating seminar:", error);
     return NextResponse.json({ error: "セミナーの更新に失敗しました" }, { status: 500 });
@@ -145,53 +112,16 @@ export async function DELETE(
   }
   try {
     const { id } = await params;
-    const url = new URL(request.url);
-    let tenant: string | null = url.searchParams.get("tenant");
-    if (!tenant || !isTenantKey(tenant)) {
-      try {
-        const body = await request.json();
-        tenant = body.tenant && isTenantKey(body.tenant) ? body.tenant : null;
-      } catch {
-        tenant = null;
-      }
-    }
-    const result = await resolveMasterRow(id, tenant);
+    const current = await getSeminarByIdFromD1(id);
 
-    if (!result) {
+    if (!current) {
       return NextResponse.json({ error: "セミナーが見つかりません" }, { status: 404 });
     }
 
-    const current = rowToSeminar(result.values);
     const now = new Date().toISOString();
 
     // 論理削除: status を cancelled に変更
-    const updated = [...result.values];
-    while (updated.length < 20) updated.push("");
-    updated[10] = "cancelled";
-    updated[18] = now;
-
-    if (tenant) {
-      await updateMasterRowForTenant(tenant, result.rowIndex, updated);
-    } else {
-      await updateMasterRow(result.rowIndex, updated);
-    }
-
-    // 個別イベントスプレッドシートの「イベント情報」シートも更新
-    if (current.spreadsheet_id) {
-      try {
-        const individualResult = await findRowById(current.spreadsheet_id, "イベント情報", id);
-        if (individualResult) {
-          const updatedIndividual = [...individualResult.values];
-          while (updatedIndividual.length < 20) updatedIndividual.push("");
-          updatedIndividual[10] = "cancelled";
-          updatedIndividual[18] = now;
-          await updateRow(current.spreadsheet_id, "イベント情報", individualResult.rowIndex, updatedIndividual);
-          console.log("[Seminar Delete] Individual spreadsheet synced");
-        }
-      } catch (err) {
-        console.error("[Seminar Delete] Failed to sync individual spreadsheet:", err);
-      }
-    }
+    await updateSeminarInD1(id, { status: "cancelled", updated_at: now });
 
     if (current.calendar_event_id) {
       try {
