@@ -73,11 +73,18 @@ export function AdminSidebar({
           href={basePath}
           className="text-lg font-bold tracking-tight text-sidebar-foreground"
         >
-          管理画面
+          {isSuperAdmin ? "メルマガ管理画面" : "管理画面"}
         </Link>
       </div>
       <nav className="flex-1 space-y-0.5 px-3 pb-4">
-        {navEntries.filter((entry) => !("superAdminOnly" in entry && entry.superAdminOnly && !isSuperAdmin)).map((entry) => {
+        {navEntries
+          .filter((entry) => {
+            // スーパー管理者: superAdminOnly のみ表示
+            if (isSuperAdmin) return "superAdminOnly" in entry && entry.superAdminOnly;
+            // テナント管理者: superAdminOnly を非表示、グループはそのまま表示
+            return !("superAdminOnly" in entry && entry.superAdminOnly);
+          })
+          .map((entry) => {
           if ("type" in entry && entry.type === "group") {
             const isGroupActive = entry.items.some((item) =>
               pathname.startsWith(`${basePath}${item.path}`)
@@ -148,6 +155,7 @@ export function AdminSidebar({
             </Link>
           );
         })}
+
       </nav>
       <div className="border-t border-sidebar-border px-5 py-4 space-y-3">
         <Link
