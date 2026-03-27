@@ -1,0 +1,29 @@
+name: メール配信スケジュール処理
+
+on:
+  schedule:
+    # JST 10:00 (UTC 01:00) に毎日実行
+    - cron: '0 1 * * *'
+  workflow_dispatch: # GitHub 画面から手動実行も可能
+
+jobs:
+  process-emails:
+    runs-on: ubuntu-latest
+    steps:
+      - name: メール配信スケジュールを処理
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            https://events.allianceforum.org/api/email-schedules/process)
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $BODY"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Error: Process endpoint returned $HTTP_CODE"
+            exit 1
+          fi

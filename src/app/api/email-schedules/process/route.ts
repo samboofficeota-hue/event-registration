@@ -23,17 +23,20 @@ export async function POST(request: NextRequest) {
   try {
     const db = await getD1();
 
-    // 今日の日付（JST: UTC+9）
+    // 現在時刻（JST: UTC+9）
     const nowUtc = new Date();
     const jstOffset = 9 * 60 * 60 * 1000;
-    const todayJst = new Date(nowUtc.getTime() + jstOffset).toISOString().slice(0, 10);
+    const nowJst = new Date(nowUtc.getTime() + jstOffset);
+    const todayJst = nowJst.toISOString().slice(0, 10);
+    const currentTimeJst = `${String(nowJst.getUTCHours()).padStart(2, "0")}:${String(nowJst.getUTCMinutes()).padStart(2, "0")}`;
 
-    // 本日送信すべき pending かつ enabled のスケジュールを取得
+    // 本日送信すべき pending かつ enabled かつ send_time が現在時刻以前のスケジュールを取得
     const rawDue = await db.prepare(
       `SELECT * FROM email_schedules
        WHERE scheduled_date = ? AND status = 'pending' AND enabled = 1
+         AND send_time <= ?
        ORDER BY seminar_id, template_id`
-    ).bind(todayJst).all() as any;
+    ).bind(todayJst, currentTimeJst).all() as any;
     const dueSschedules = (rawDue.results ?? []) as EmailSchedule[];
 
     if (dueSschedules.length === 0) {

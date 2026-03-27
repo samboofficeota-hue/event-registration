@@ -17,8 +17,8 @@ binding = "DB"
 database_name = "event-registration-db"
 database_id = "33f750e6-a120-410c-af39-e3e5d23b5576"
 
-[triggers]
-crons = ["0 1 * * *"]
+# Cron は GitHub Actions (.github/workflows/email-schedule.yml) で管理
+# wrangler の scheduled ハンドラーは OpenNext.js が未対応のため使用しない
 
 [vars]
 NEXT_PUBLIC_APP_URL = "https://events.allianceforum.org"
