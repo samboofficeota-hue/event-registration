@@ -63,13 +63,33 @@ export async function POST(
       return NextResponse.json({ error: "このキャンペーンは送信済みです" }, { status: 400 });
     }
 
+    const listId: string | null = campaign.list_id ?? null;
     const recipientTags: string[] = JSON.parse(campaign.recipient_tags || "[]");
 
     // 全体件数（進捗計算用）
     let totalCount = 0;
     let subscribers: { id: string; email: string; name: string; company: string; department: string }[] = [];
 
-    if (recipientTags.length === 0) {
+    if (listId) {
+      // リストメンバーから送信対象を取得
+      const countRow = await db.prepare(
+        `SELECT COUNT(*) AS cnt
+         FROM newsletter_list_members lm
+         JOIN newsletter_subscribers s ON lm.subscriber_id = s.id
+         WHERE lm.list_id = ? AND s.status = 'active'`
+      ).bind(listId).first() as any;
+      totalCount = countRow?.cnt ?? 0;
+
+      const rows = await db.prepare(
+        `SELECT s.id, s.email, s.name, s.company, s.department
+         FROM newsletter_list_members lm
+         JOIN newsletter_subscribers s ON lm.subscriber_id = s.id
+         WHERE lm.list_id = ? AND s.status = 'active'
+         ORDER BY lm.added_at ASC
+         LIMIT ? OFFSET ?`
+      ).bind(listId, batchSize, offset).all() as any;
+      subscribers = rows.results ?? [];
+    } else if (recipientTags.length === 0) {
       const countRow = await db.prepare(
         `SELECT COUNT(*) AS cnt FROM newsletter_subscribers WHERE status = 'active'`
       ).first() as any;

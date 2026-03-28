@@ -40,31 +40,30 @@ export async function PUT(
   const { id } = await params;
   try {
     const body = await request.json();
-    const { subject, body: emailBody, recipient_tags, scheduled_at, status, header_color } = body;
+    const { subject, body: emailBody, recipient_tags, scheduled_at, status, header_color, list_id } = body;
 
     const db = await getD1();
     const now = new Date().toISOString();
 
     // scheduled_at が指定されている場合は予約配信として status を 'scheduled' に設定
-    const newStatus = status ?? (scheduled_at ? "scheduled" : undefined);
+    const newStatus = status ?? ("scheduled_at" in body && scheduled_at ? "scheduled" : undefined);
 
-    const setClauses = [
-      "subject = ?", "body = ?", "recipient_tags = ?", "updated_at = ?",
-      "scheduled_at = ?",
-      "header_color = ?",
-      ...(newStatus ? ["status = ?"] : []),
-    ].join(", ");
+    // 送信されたフィールドのみ更新する（部分更新対応）
+    const setClauses: string[] = ["updated_at = ?"];
+    const bindValues: unknown[] = [now];
 
-    const bindValues = [
-      subject, emailBody, JSON.stringify(recipient_tags ?? []), now,
-      scheduled_at ?? null,
-      header_color ?? "dark",
-      ...(newStatus ? [newStatus] : []),
-      id,
-    ];
+    if ("subject" in body)       { setClauses.push("subject = ?");        bindValues.push(subject); }
+    if ("body" in body)          { setClauses.push("body = ?");           bindValues.push(emailBody); }
+    if ("recipient_tags" in body){ setClauses.push("recipient_tags = ?"); bindValues.push(JSON.stringify(recipient_tags ?? [])); }
+    if ("scheduled_at" in body)  { setClauses.push("scheduled_at = ?");   bindValues.push(scheduled_at ?? null); }
+    if ("header_color" in body)  { setClauses.push("header_color = ?");   bindValues.push(header_color ?? "dark"); }
+    if ("list_id" in body)       { setClauses.push("list_id = ?");        bindValues.push(list_id ?? null); }
+    if (newStatus)               { setClauses.push("status = ?");         bindValues.push(newStatus); }
+
+    bindValues.push(id);
 
     await db.prepare(
-      `UPDATE newsletter_campaigns SET ${setClauses} WHERE id = ? AND status IN ('draft', 'scheduled')`
+      `UPDATE newsletter_campaigns SET ${setClauses.join(", ")} WHERE id = ? AND status IN ('draft', 'scheduled')`
     ).bind(...bindValues).run();
 
     return NextResponse.json({ success: true });
