@@ -115,13 +115,17 @@ export async function POST(
     }
 
     // ── Resend batch.send で一括送信 ──────────────────────
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://events.allianceforum.org";
     const messages = subscribers.map((subscriber) => {
-      const personalizedBody = campaign.body.replace(/\{\{name\}\}/g, subscriber.name || "");
+      const unsubscribeUrl = `${appUrl}/unsubscribe?id=${subscriber.id}`;
+      const personalizedBody = campaign.body
+        .replace(/\{\{name\}\}/g, subscriber.name || "")
+        .replace(/\{\{unsubscribe_url\}\}/g, unsubscribeUrl);
       return {
         from: `${FROM_NAME} <${fromEmail}>`,
         to: subscriber.email,
         subject: campaign.subject as string,
-        html: buildHtmlEmail(personalizedBody),
+        html: buildHtmlEmail(personalizedBody, unsubscribeUrl),
         text: personalizedBody,
       };
     });

@@ -28,6 +28,24 @@ jobs:
             exit 1
           fi
 
+      - name: セミナー参加者をメルマガマスターDBへ同期
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            https://events.allianceforum.org/api/newsletter/sync-from-registrations)
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $BODY"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Warning: sync-from-registrations returned $HTTP_CODE (non-fatal)"
+          fi
+
       - name: メルマガ予約配信を処理（バッチループ）
         run: |
           MAX_BATCHES=500

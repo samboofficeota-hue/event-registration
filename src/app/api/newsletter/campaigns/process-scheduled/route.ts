@@ -94,13 +94,20 @@ export async function POST(request: NextRequest) {
   let failedCount = 0;
 
   if (subscribers.length > 0) {
-    const messages = subscribers.map((s) => ({
-      from: `${FROM_NAME} <${fromEmail}>`,
-      to: s.email,
-      subject: campaign.subject as string,
-      html: buildHtmlEmail((campaign.body as string).replace(/\{\{name\}\}/g, s.name || "")),
-      text: (campaign.body as string).replace(/\{\{name\}\}/g, s.name || ""),
-    }));
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://events.allianceforum.org";
+    const messages = subscribers.map((s) => {
+      const unsubscribeUrl = `${appUrl}/unsubscribe?id=${s.id}`;
+      const personalizedBody = (campaign.body as string)
+        .replace(/\{\{name\}\}/g, s.name || "")
+        .replace(/\{\{unsubscribe_url\}\}/g, unsubscribeUrl);
+      return {
+        from: `${FROM_NAME} <${fromEmail}>`,
+        to: s.email,
+        subject: campaign.subject as string,
+        html: buildHtmlEmail(personalizedBody, unsubscribeUrl),
+        text: personalizedBody,
+      };
+    });
 
     const { data: batchData, error } = await resend.batch.send(messages);
     const data = batchData as Array<{ id?: string }> | null;

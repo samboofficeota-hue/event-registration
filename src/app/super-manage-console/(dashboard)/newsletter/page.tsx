@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Search, Plus, Upload, RefreshCw, Trash2, Pencil, X, Check, ShieldCheck, ChevronDown, ChevronUp, AlertTriangle, Sparkles, ArrowLeftRight } from "lucide-react";
+import { Search, Plus, Upload, RefreshCw, Trash2, Pencil, X, Check, ShieldCheck, ChevronDown, ChevronUp, AlertTriangle, Sparkles, ArrowLeftRight, ArrowDownToLine } from "lucide-react";
 
 interface Subscriber {
   id: string;
@@ -84,6 +84,9 @@ export default function NewsletterPage() {
   const [qualityLoading, setQualityLoading] = useState(false);
   const [qualityResult, setQualityResult] = useState<{ duplicate_names: DuplicateName[]; reversed_names: ReversedName[] } | null>(null);
   const [applyingFix, setApplyingFix] = useState<string | null>(null);
+
+  // セミナー同期
+  const [syncing, setSyncing] = useState(false);
 
 
   const LIMIT = 50;
@@ -255,6 +258,19 @@ export default function NewsletterPage() {
     }
   }
 
+  // セミナー参加者→マスター同期
+  async function syncFromRegistrations() {
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/newsletter/sync-from-registrations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      toast.success(data.message);
+      load(1);
+    } catch (e) { toast.error(e instanceof Error ? e.message : "同期に失敗しました"); }
+    finally { setSyncing(false); }
+  }
+
   const totalPages = Math.ceil(total / LIMIT);
 
   return (
@@ -278,6 +294,9 @@ export default function NewsletterPage() {
             >
               <ShieldCheck className="size-3.5" />品質チェック
               {showQuality ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
+            </Button>
+            <Button variant="outline" size="sm" onClick={syncFromRegistrations} disabled={syncing} className="gap-1.5">
+              <ArrowDownToLine className="size-3.5" />{syncing ? "同期中…" : "セミナー同期"}
             </Button>
             <Button variant="outline" size="sm" onClick={() => setShowImport(true)} className="gap-1.5">
               <Upload className="size-3.5" />CSVインポート

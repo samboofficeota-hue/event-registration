@@ -42,27 +42,31 @@ export async function POST(request: NextRequest) {
 
   // ── 1. 重複チェック（同名・複数メール） ─────────────────────
   if (checks.includes("duplicates")) {
-    // 同じ名前で複数の購読者を検出（名前の空白を正規化）
+    // 同じ名前で複数の購読者を検出
+    // 半角・全角スペースを除去して正規化（「太田義史」「太田 義史」「太田　義史」を同一視）
     const dupRows = await db.prepare(
-      `SELECT TRIM(name) AS norm_name, COUNT(*) AS cnt
+      `SELECT REPLACE(REPLACE(REPLACE(TRIM(name), ' ', ''), '　', ''), '\t', '') AS norm_name,
+              COUNT(*) AS cnt
        FROM newsletter_subscribers
        WHERE name != '' AND status != 'bounced'
-       GROUP BY TRIM(name)
+       GROUP BY REPLACE(REPLACE(REPLACE(TRIM(name), ' ', ''), '　', ''), '\t', '')
        HAVING cnt > 1
        ORDER BY cnt DESC, norm_name
        LIMIT 50`
     ).all() as any;
 
     for (const row of (dupRows.results ?? [])) {
+      // norm_name に一致する全レコードを取得（スペース正規化で比較）
       const members = await db.prepare(
-        `SELECT id, email, company, department, created_at, status
+        `SELECT id, email, name, company, department, created_at, status
          FROM newsletter_subscribers
-         WHERE TRIM(name) = ? AND status != 'bounced'
+         WHERE REPLACE(REPLACE(REPLACE(TRIM(name), ' ', ''), '　', ''), '\t', '') = ?
+           AND status != 'bounced'
          ORDER BY created_at ASC`
       ).bind(row.norm_name).all() as any;
 
       result.duplicate_names.push({
-        name: row.norm_name,
+        name: row.norm_name,  // スペース除去後の正規化名
         count: row.cnt,
         subscribers: members.results ?? [],
       });
