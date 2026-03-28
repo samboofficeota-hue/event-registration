@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { RefreshCw, Plus, Clock, History, AlertTriangle, Info } from "lucide-react";
+import { RefreshCw, Plus, Clock, History, AlertTriangle, Info, X, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface Campaign {
   id: string;
@@ -33,10 +33,30 @@ interface SendStats {
   limits: { daily: number | null; monthly: number; plan: string };
 }
 
+interface SendLog {
+  id: number;
+  email: string;
+  name: string;
+  status: "sent" | "failed";
+  resend_id: string | null;
+  error_message: string | null;
+  sent_at: string;
+}
+
+interface LogModal {
+  campaign: Campaign;
+  page: number;
+  total: number;
+  logs: SendLog[];
+  filterStatus: "" | "sent" | "failed";
+  loading: boolean;
+}
+
 export default function NewsletterHistoryPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<SendStats | null>(null);
+  const [logModal, setLogModal] = useState<LogModal | null>(null);
 
   const loadStats = useCallback(async () => {
     const res = await fetch("/api/newsletter/stats");
@@ -59,6 +79,34 @@ export default function NewsletterHistoryPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const openLogModal = useCallback(async (campaign: Campaign, filterStatus: "" | "sent" | "failed" = "") => {
+    setLogModal({ campaign, page: 1, total: 0, logs: [], filterStatus, loading: true });
+    try {
+      const params = new URLSearchParams({ page: "1", limit: "100" });
+      if (filterStatus) params.set("status", filterStatus);
+      const res = await fetch(`/api/newsletter/campaigns/${campaign.id}/logs?${params}`);
+      const data = await res.json();
+      setLogModal((prev) => prev ? { ...prev, total: data.total, logs: data.logs ?? [], loading: false } : null);
+    } catch {
+      toast.error("取得に失敗しました");
+      setLogModal(null);
+    }
+  }, []);
+
+  const loadLogPage = useCallback(async (page: number) => {
+    if (!logModal) return;
+    setLogModal((prev) => prev ? { ...prev, loading: true } : null);
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: "100" });
+      if (logModal.filterStatus) params.set("status", logModal.filterStatus);
+      const res = await fetch(`/api/newsletter/campaigns/${logModal.campaign.id}/logs?${params}`);
+      const data = await res.json();
+      setLogModal((prev) => prev ? { ...prev, page, total: data.total, logs: data.logs ?? [], loading: false } : null);
+    } catch {
+      toast.error("取得に失敗しました");
+    }
+  }, [logModal]);
 
   const drafts     = campaigns.filter((c) => c.status === "draft");
   const scheduled  = campaigns.filter((c) => c.status === "scheduled");
@@ -273,12 +321,24 @@ export default function NewsletterHistoryPage() {
                       ))}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <span className="font-medium text-emerald-600">{c.sent_count.toLocaleString()}</span>
+                      <button
+                        onClick={() => openLogModal(c, "sent")}
+                        className="font-medium text-emerald-600 hover:underline tabular-nums"
+                        title="送信成功リストを表示"
+                      >
+                        {c.sent_count.toLocaleString()}
+                      </button>
                       <span className="text-muted-foreground text-xs ml-1">/ {c.recipient_count.toLocaleString()}</span>
                     </td>
                     <td className="px-4 py-3 text-right">
                       {c.failed_count > 0 ? (
-                        <span className="text-red-500 font-medium">{c.failed_count}</span>
+                        <button
+                          onClick={() => openLogModal(c, "failed")}
+                          className="text-red-500 font-medium hover:underline tabular-nums"
+                          title="失敗リストを表示"
+                        >
+                          {c.failed_count}
+                        </button>
                       ) : (
                         <span className="text-muted-foreground">0</span>
                       )}
@@ -293,5 +353,120 @@ export default function NewsletterHistoryPage() {
       </section>
 
     </div>
+
+    {/* ─── 送信ログ モーダル ─── */}
+    {logModal && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+        onClick={(e) => { if (e.target === e.currentTarget) setLogModal(null); }}
+      >
+        <div className="w-full max-w-3xl max-h-[85vh] flex flex-col rounded-xl border border-border bg-background shadow-2xl">
+
+          {/* ヘッダー */}
+          <div className="flex items-start justify-between gap-3 border-b border-border px-6 py-4 shrink-0">
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold truncate">{logModal.campaign.subject}</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                送信日時: {formatDatetime(logModal.campaign.sent_at)} ／ 合計: {logModal.total.toLocaleString()} 件
+              </p>
+            </div>
+            <button
+              onClick={() => setLogModal(null)}
+              className="rounded p-1.5 text-muted-foreground hover:bg-muted shrink-0"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+
+          {/* フィルタータブ */}
+          <div className="flex gap-1 px-6 py-2 border-b border-border bg-muted/10 shrink-0">
+            {(["", "sent", "failed"] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => openLogModal(logModal.campaign, s)}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  logModal.filterStatus === s
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                {s === "" ? "全件" : s === "sent" ? "✓ 成功" : "✗ 失敗"}
+              </button>
+            ))}
+            <span className="ml-auto text-xs text-muted-foreground self-center">
+              {logModal.total.toLocaleString()} 件
+            </span>
+          </div>
+
+          {/* テーブル */}
+          <div className="flex-1 overflow-y-auto">
+            {logModal.loading ? (
+              <div className="p-8 text-center text-sm text-muted-foreground">読み込み中…</div>
+            ) : logModal.logs.length === 0 ? (
+              <div className="p-8 text-center text-sm text-muted-foreground">該当するログがありません</div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-background border-b border-border">
+                  <tr>
+                    <th className="px-4 py-2.5 text-left font-medium text-xs text-muted-foreground">メールアドレス</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-xs text-muted-foreground">名前</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-xs text-muted-foreground">結果</th>
+                    <th className="px-4 py-2.5 text-left font-medium text-xs text-muted-foreground">送信時刻</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {logModal.logs.map((log) => (
+                    <tr key={log.id} className="hover:bg-muted/20">
+                      <td className="px-4 py-2.5 font-mono text-xs">{log.email}</td>
+                      <td className="px-4 py-2.5 text-xs">{log.name || "—"}</td>
+                      <td className="px-4 py-2.5">
+                        {log.status === "sent" ? (
+                          <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">✓ 成功</span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-700" title={log.error_message ?? ""}>
+                            ✗ 失敗{log.error_message ? `：${log.error_message.slice(0, 30)}` : ""}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-muted-foreground tabular-nums">
+                        {formatDatetime(log.sent_at)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* ページネーション */}
+          {logModal.total > 100 && (
+            <div className="flex items-center justify-center gap-2 border-t border-border px-6 py-3 shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={logModal.page <= 1 || logModal.loading}
+                onClick={() => loadLogPage(logModal.page - 1)}
+                className="gap-1"
+              >
+                <ChevronLeft className="size-3.5" />前
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                {logModal.page} / {Math.ceil(logModal.total / 100)} ページ
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={logModal.page >= Math.ceil(logModal.total / 100) || logModal.loading}
+                onClick={() => loadLogPage(logModal.page + 1)}
+                className="gap-1"
+              >
+                次<ChevronRight className="size-3.5" />
+              </Button>
+            </div>
+          )}
+
+        </div>
+      </div>
+    )}
   );
 }
