@@ -389,6 +389,20 @@
   line-height: 1.4;
 }
 
+/* 管理画面: outline・ghost ボタンの hover を中立色に変更
+   （デフォルトの --accent = pink は管理画面に不適） */
+.admin-main button[data-variant="outline"]:hover,
+.admin-main [role="button"][data-variant="outline"]:hover {
+  background-color: hsl(var(--muted));
+  color: hsl(var(--foreground));
+  border-color: hsl(var(--border));
+}
+.admin-main button[data-variant="ghost"]:hover,
+.admin-main [role="button"][data-variant="ghost"]:hover {
+  background-color: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+
 /* セミナーカード内のフッターボタン群 */
 .admin-card-footer {
   display: flex;

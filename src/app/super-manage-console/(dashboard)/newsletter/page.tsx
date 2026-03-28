@@ -66,6 +66,7 @@ export default function NewsletterPage() {
   const [deleteTarget, setDeleteTarget] = useState<Subscriber | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+
   const LIMIT = 50;
 
   const load = useCallback(async (p = 1) => {
@@ -247,7 +248,7 @@ export default function NewsletterPage() {
               <option key={t.tag} value={t.tag}>{t.tag}（{t.count}）</option>
             ))}
           </select>
-          <Button size="sm" onClick={() => load(1)} className="h-9">検索</Button>
+          <Button onClick={() => load(1)}>検索</Button>
         </div>
 
         {/* 件数 */}
@@ -371,8 +372,8 @@ export default function NewsletterPage() {
               <div><Label className="text-sm">メモ</Label><Input value={addForm.note} onChange={(e) => setAddForm((f) => ({ ...f, note: e.target.value }))} className="mt-1" /></div>
             </div>
             <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
-              <Button variant="outline" onClick={() => setShowAddForm(false)}>キャンセル</Button>
-              <Button disabled={adding} onClick={handleAdd}>{adding ? "追加中..." : "追加"}</Button>
+              <Button variant="outline" size="sm" onClick={() => setShowAddForm(false)}>キャンセル</Button>
+              <Button size="sm" disabled={adding} onClick={handleAdd}>{adding ? "追加中..." : "追加"}</Button>
             </div>
           </div>
         </div>
@@ -412,8 +413,8 @@ export default function NewsletterPage() {
               )}
             </div>
             <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
-              <Button variant="outline" onClick={() => { setShowImport(false); setImportResult(null); }}>閉じる</Button>
-              <Button disabled={importing || !importFile} onClick={handleImport}>{importing ? "インポート中..." : "インポート実行"}</Button>
+              <Button variant="outline" size="sm" onClick={() => { setShowImport(false); setImportResult(null); }}>閉じる</Button>
+              <Button size="sm" disabled={importing || !importFile} onClick={handleImport}>{importing ? "インポート中..." : "インポート実行"}</Button>
             </div>
           </div>
         </div>
@@ -432,8 +433,8 @@ export default function NewsletterPage() {
               {deleteTarget.name && <p className="text-xs text-muted-foreground mt-0.5">{deleteTarget.name}</p>}
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setDeleteTarget(null)}>キャンセル</Button>
-              <Button variant="destructive" disabled={deleting} onClick={() => handleDelete(deleteTarget.id)}>
+              <Button variant="outline" size="sm" onClick={() => setDeleteTarget(null)}>キャンセル</Button>
+              <Button variant="destructive" size="sm" disabled={deleting} onClick={() => handleDelete(deleteTarget.id)}>
                 {deleting ? "削除中..." : "削除"}
               </Button>
             </div>

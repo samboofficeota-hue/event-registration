@@ -19,6 +19,7 @@ interface NavGroup {
   label: string;
   icon: string;
   items: NavItem[];
+  superAdminOnly?: boolean;
 }
 
 type NavEntry = NavItem | NavGroup;
@@ -37,7 +38,18 @@ const navEntries: NavEntry[] = [
       { path: "/email-templates", label: "テンプレート管理", icon: "📄" },
     ],
   },
-  { path: "/newsletter", label: "メルマガ管理", icon: "📬", absolutePath: "/super-manage-console/newsletter", superAdminOnly: true },
+  {
+    type: "group",
+    label: "メルマガ配信",
+    icon: "📬",
+    superAdminOnly: true,
+    items: [
+      { path: "/newsletter-history", label: "配信トップ", icon: "📋", absolutePath: "/super-manage-console/newsletter-history", superAdminOnly: true },
+      { path: "/newsletter-compose", label: "メール作成・編集", icon: "✉️", absolutePath: "/super-manage-console/newsletter-compose", superAdminOnly: true },
+      { path: "/newsletter-list", label: "リスト設定・配信", icon: "🎯", absolutePath: "/super-manage-console/newsletter-list", superAdminOnly: true },
+      { path: "/newsletter", label: "データベース管理", icon: "🗄️", absolutePath: "/super-manage-console/newsletter", superAdminOnly: true },
+    ],
+  },
 ];
 
 interface AdminSidebarProps {
@@ -61,10 +73,24 @@ export function AdminSidebar({
     router.refresh();
   }
 
-  // メール配信グループが現在のパスに含まれていれば初期展開
-  const emailPaths = ["/email-templates", "/email-schedules"];
-  const defaultOpen = emailPaths.some((p) => pathname.startsWith(`${basePath}${p}`));
-  const [emailGroupOpen, setEmailGroupOpen] = useState(defaultOpen);
+  // グループごとの開閉状態（グループラベルをキーに管理）
+  const initialOpenGroups = () => {
+    const open: Record<string, boolean> = {};
+    for (const entry of navEntries) {
+      if ("type" in entry && entry.type === "group") {
+        open[entry.label] = entry.items.some((item) => {
+          const href = item.absolutePath ?? `${basePath}${item.path}`;
+          return pathname === href || pathname.startsWith(href + "/");
+        });
+      }
+    }
+    return open;
+  };
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(initialOpenGroups);
+
+  function toggleGroup(label: string) {
+    setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
+  }
 
   return (
     <aside className="admin-sidebar flex w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar font-sans">
@@ -86,32 +112,62 @@ export function AdminSidebar({
           })
           .map((entry) => {
           if ("type" in entry && entry.type === "group") {
-            const isGroupActive = entry.items.some((item) =>
-              pathname.startsWith(`${basePath}${item.path}`)
-            );
+            // スーパー管理者: グループヘッダーなしでアイテムをフラット表示
+            if (isSuperAdmin) {
+              return (
+                <div key={entry.label} className="space-y-0.5">
+                  {entry.items.map((item) => {
+                    const href = item.absolutePath ?? `${basePath}${item.path}`;
+                    const isActive = pathname === href || pathname.startsWith(href + "/");
+                    return (
+                      <Link
+                        key={href}
+                        href={href}
+                        className={cn(
+                          "flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[0.875rem] font-medium transition-colors",
+                          isActive
+                            ? "bg-sidebar-primary/10 text-sidebar-primary"
+                            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                        )}
+                      >
+                        <span className="text-base">{item.icon}</span>
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              );
+            }
+
+            // テナント管理者: 従来の折りたたみグループ
+            const isGroupActive = entry.items.some((item) => {
+              const href = item.absolutePath ?? `${basePath}${item.path}`;
+              return pathname === href || pathname.startsWith(href + "/");
+            });
+            const isOpen = openGroups[entry.label] ?? false;
             return (
               <div key={entry.label}>
                 <button
-                  onClick={() => setEmailGroupOpen((v) => !v)}
+                  onClick={() => toggleGroup(entry.label)}
                   className={cn(
                     "flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-[0.875rem] font-medium transition-colors",
-                    isGroupActive
+                    isGroupActive && !isOpen
                       ? "bg-sidebar-primary/10 text-sidebar-primary"
                       : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   )}
                 >
                   <span className="text-base">{entry.icon}</span>
                   <span className="flex-1 text-left">{entry.label}</span>
-                  {emailGroupOpen
+                  {isOpen
                     ? <ChevronDown className="h-4 w-4 opacity-60" />
                     : <ChevronRight className="h-4 w-4 opacity-60" />
                   }
                 </button>
-                {emailGroupOpen && (
+                {isOpen && (
                   <div className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-3">
                     {entry.items.map((item) => {
-                      const href = `${basePath}${item.path}`;
-                      const isActive = pathname.startsWith(href);
+                      const href = item.absolutePath ?? `${basePath}${item.path}`;
+                      const isActive = pathname === href || pathname.startsWith(href + "/");
                       return (
                         <Link
                           key={href}
@@ -119,7 +175,7 @@ export function AdminSidebar({
                           className={cn(
                             "flex items-center rounded-lg px-3 py-2 text-[0.8125rem] font-medium transition-colors",
                             isActive
-                              ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
+                              ? "bg-sidebar-primary/10 text-sidebar-primary"
                               : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                           )}
                         >

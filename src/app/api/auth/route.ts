@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getTenantAdminPassword, isTenantKey } from "@/lib/tenant-config";
+import { getTenantAdminPassword, isTenantKey, TENANT_KEYS } from "@/lib/tenant-config";
 import {
   checkAuthRateLimit,
   recordAuthFailure,
@@ -42,7 +42,7 @@ async function createToken(secret: string, tenant?: string): Promise<string> {
 
 export async function POST(request: NextRequest) {
   try {
-    const { password, tenant } = await request.json();
+    const { password, tenant, tenantPassword } = await request.json();
     const jwtSecret = process.env.ADMIN_JWT_SECRET;
 
     if (!jwtSecret) {
@@ -63,8 +63,8 @@ export async function POST(request: NextRequest) {
     let resolvedTenant: string | undefined;
 
     if (tenant && isTenantKey(tenant)) {
-      const tenantPassword = getTenantAdminPassword(tenant);
-      if (tenantPassword && password === tenantPassword) {
+      const storedPw = getTenantAdminPassword(tenant);
+      if (storedPw && password === storedPw) {
         valid = true;
         resolvedTenant = tenant;
       }
@@ -73,7 +73,18 @@ export async function POST(request: NextRequest) {
     if (!valid) {
       const adminPassword = process.env.ADMIN_PASSWORD;
       if (adminPassword && password === adminPassword) {
-        valid = true;
+        // スーパー管理者モード: tenantPassword も照合する
+        if (tenantPassword !== undefined) {
+          const anyTenantValid = TENANT_KEYS.some((key) => {
+            const p = getTenantAdminPassword(key);
+            return p && tenantPassword === p;
+          });
+          if (anyTenantValid) {
+            valid = true;
+          }
+        } else {
+          valid = true;
+        }
       }
     }
 

@@ -10,7 +10,7 @@ jobs:
   process-emails:
     runs-on: ubuntu-latest
     steps:
-      - name: メール配信スケジュールを処理
+      - name: セミナーメール配信スケジュールを処理
         run: |
           RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
@@ -24,6 +24,41 @@ jobs:
           echo "Response: $BODY"
 
           if [ "$HTTP_CODE" != "200" ]; then
-            echo "Error: Process endpoint returned $HTTP_CODE"
+            echo "Error: email-schedules/process returned $HTTP_CODE"
             exit 1
           fi
+
+      - name: メルマガ予約配信を処理（バッチループ）
+        run: |
+          MAX_BATCHES=500
+          BATCH=0
+
+          while [ $BATCH -lt $MAX_BATCHES ]; do
+            RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+              -H "Content-Type: application/json" \
+              -d "{\"offset\": $(( BATCH * 100 ))}" \
+              https://events.allianceforum.org/api/newsletter/campaigns/process-scheduled)
+
+            HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+            BODY=$(echo "$RESPONSE" | head -n-1)
+
+            echo "Batch $BATCH — HTTP: $HTTP_CODE"
+            echo "Response: $BODY"
+
+            if [ "$HTTP_CODE" != "200" ]; then
+              echo "Error: process-scheduled returned $HTTP_CODE"
+              exit 1
+            fi
+
+            # has_more が false または processed が 0 なら終了
+            HAS_MORE=$(echo "$BODY" | grep -o '"has_more":true' || true)
+            PROCESSED=$(echo "$BODY" | grep -o '"sent":[0-9]*' | head -1 | grep -o '[0-9]*' || echo "0")
+
+            if [ -z "$HAS_MORE" ]; then
+              echo "配信完了または対象なし。終了します。"
+              break
+            fi
+
+            BATCH=$(( BATCH + 1 ))
+          done
