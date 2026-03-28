@@ -57,16 +57,17 @@ function formatShort(iso: string) {
   return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,"0")}/${String(d.getDate()).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
 }
 
-function buildSeminarBlock(seminar: Seminar, tenant: TenantKey): string {
+function buildSeminarBlock(seminar: Seminar, _tenant: TenantKey): string {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://events.allianceforum.org";
-  const tenantPath = tenant === "whgc-seminars" ? "whgc-seminars" : tenant;
+  // UUIDの先頭8文字を短縮IDとして使用 (/s/{shortId} でリダイレクト)
+  const shortId = seminar.id.replace(/-/g, "").slice(0, 8);
   const lines = [
     `■ ${seminar.title}`,
     seminar.date ? `　日時：${formatDate(seminar.date)}` : "",
     seminar.format ? `　形式：${FORMAT_LABEL[seminar.format] ?? seminar.format}` : "",
-    seminar.speaker ? `　登壇：${seminar.speaker}` : "",
+    seminar.speaker ? `　登壇：${seminar.speaker} さん` : "",
     seminar.description ? `\n${seminar.description}` : "",
-    `\n　詳細・お申し込み：${appUrl}/${tenantPath}/seminars/${seminar.id}`,
+    `\n　詳細・お申し込み：${appUrl}/s/${shortId}`,
   ].filter(Boolean);
   return lines.join("\n");
 }
