@@ -1,10 +1,20 @@
 import { NextRequest } from "next/server";
 
 /**
- * admin_token クッキーを検証し、管理者として有効かどうかを返す。
+ * admin_token クッキーまたは Authorization: Bearer <CRON_SECRET> ヘッダーを検証し、
+ * 管理者として有効かどうかを返す。
  * API ルートで管理者専用操作の前に呼ぶ。
  */
 export async function verifyAdminRequest(request: NextRequest): Promise<boolean> {
+  // Authorization: Bearer <CRON_SECRET> ヘッダーによる認証 (GitHub Actions など)
+  const authHeader = request.headers.get("authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    const bearerToken = authHeader.slice(7);
+    const cronSecret = process.env.CRON_SECRET;
+    if (cronSecret && bearerToken === cronSecret) return true;
+  }
+
+  // admin_token クッキーによる認証 (ブラウザ管理画面)
   const token = request.cookies.get("admin_token")?.value;
   const secret = process.env.ADMIN_JWT_SECRET;
   if (!token || !secret) return false;
