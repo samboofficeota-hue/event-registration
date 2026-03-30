@@ -123,7 +123,8 @@ export default function NewsletterHistoryPage() {
           <p className="admin-description mt-1">メルマガのキャンペーン一覧</p>
           <p className="text-xs text-muted-foreground mt-2 max-w-xl leading-relaxed">
             配信は <strong>100件ずつ自動分割</strong> して順番に送信します（Resend API の仕様）。1,000件の場合は約10回のリクエストが順次実行されます。<br />
-            <strong className="text-amber-600">送信中はブラウザのタブを閉じたり、ページを移動したりしないでください。</strong>中断した場合、処理済みのバッチまでは送信済みとなり、残りの配信は行われません。
+            <strong>予約配信</strong>は毎日 JST 10:00 に GitHub Actions が自動実行するため、ブラウザを開いておく必要はありません。<br />
+            <strong className="text-amber-600">即時送信中はブラウザのタブを閉じたり、ページを移動したりしないでください。</strong>中断した場合、処理済みのバッチまでは送信済みとなり、残りの配信は行われません。
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={load} className="gap-1.5 shrink-0">
@@ -179,8 +180,8 @@ export default function NewsletterHistoryPage() {
                 <p className="text-xs text-muted-foreground">残り {monthlyRemaining.toLocaleString()} 件（メルマガ {stats.month.newsletter_sent} + セミナー {stats.month.seminar_sent}）</p>
               </div>
             </div>
-            {hasDailyLimit && dailyPct >= 100 && <p className="text-xs text-red-600 font-medium">⚠ 1日の上限に達しました。Resend の Pro プランへのアップグレードを検討してください。</p>}
-            {monthlyPct >= 100 && <p className="text-xs text-red-600 font-medium">⚠ 今月の上限に達しました。Resend のプランアップグレードを検討してください。</p>}
+            {hasDailyLimit && dailyPct >= 100 && <p className="text-xs text-red-600 font-medium">⚠ 1日の上限に達しました。</p>}
+            {monthlyPct >= 100 && <p className="text-xs text-red-600 font-medium">⚠ 今月の上限（50,000件）に達しました。Resend のプランアップグレードを検討してください。</p>}
           </div>
         );
       })()}
