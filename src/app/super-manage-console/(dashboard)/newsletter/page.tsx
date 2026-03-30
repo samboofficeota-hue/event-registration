@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Search, Plus, Upload, RefreshCw, Trash2, Pencil, X, Check, ShieldCheck, ChevronDown, ChevronUp, AlertTriangle, Sparkles, ArrowLeftRight, ArrowDownToLine } from "lucide-react";
+import { Search, Plus, Upload, RefreshCw, Trash2, Pencil, X, Check, ShieldCheck, ChevronDown, ChevronUp, AlertTriangle, Sparkles, ArrowLeftRight, ArrowDownToLine, Tag } from "lucide-react";
 
 interface Subscriber {
   id: string;
@@ -87,6 +87,17 @@ export default function NewsletterPage() {
 
   // セミナー同期
   const [syncing, setSyncing] = useState(false);
+
+  // スマートタグ
+  const [showSmartTag, setShowSmartTag] = useState(false);
+  const [smartTagRule, setSmartTagRule] = useState("member_domain");
+  const [smartTagTenant, setSmartTagTenant] = useState("whgc-seminars");
+  const [smartTagName, setSmartTagName] = useState("");
+  const [smartTagPreviewCount, setSmartTagPreviewCount] = useState<number | null>(null);
+  const [smartTagPreviewList, setSmartTagPreviewList] = useState<{ id: string; email: string; name: string; company: string; department: string }[]>([]);
+  const [showSmartTagList, setShowSmartTagList] = useState(false);
+  const [smartTagPreviewing, setSmartTagPreviewing] = useState(false);
+  const [smartTagApplying, setSmartTagApplying] = useState(false);
 
 
   const LIMIT = 50;
@@ -258,6 +269,46 @@ export default function NewsletterPage() {
     }
   }
 
+  // スマートタグ プレビュー
+  async function previewSmartTag() {
+    setSmartTagPreviewing(true);
+    setSmartTagPreviewCount(null);
+    setSmartTagPreviewList([]);
+    setShowSmartTagList(false);
+    try {
+      const res = await fetch("/api/newsletter/subscribers/bulk-tag", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rule: smartTagRule, tenant: smartTagTenant, preview: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setSmartTagPreviewCount(data.count);
+      setSmartTagPreviewList(data.subscribers ?? []);
+    } catch (e) { toast.error(e instanceof Error ? e.message : "プレビューに失敗しました"); }
+    finally { setSmartTagPreviewing(false); }
+  }
+
+  // スマートタグ 付与
+  async function applySmartTag() {
+    if (!smartTagName.trim()) { toast.error("タグ名を入力してください"); return; }
+    setSmartTagApplying(true);
+    try {
+      const res = await fetch("/api/newsletter/subscribers/bulk-tag", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rule: smartTagRule, tenant: smartTagTenant, tagName: smartTagName }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      toast.success(`${data.tagged} 件にタグ「${smartTagName}」を付与しました`);
+      setSmartTagName("");
+      setSmartTagPreviewCount(null);
+      load(1); loadTags();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "タグ付与に失敗しました"); }
+    finally { setSmartTagApplying(false); }
+  }
+
   // セミナー参加者→マスター同期
   async function syncFromRegistrations() {
     setSyncing(true);
@@ -294,6 +345,15 @@ export default function NewsletterPage() {
             >
               <ShieldCheck className="size-3.5" />品質チェック
               {showQuality ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setShowSmartTag((v) => !v); setSmartTagPreviewCount(null); }}
+              className="gap-1.5"
+            >
+              <Tag className="size-3.5" />スマートタグ
+              {showSmartTag ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
             </Button>
             <Button variant="outline" size="sm" onClick={syncFromRegistrations} disabled={syncing} className="gap-1.5">
               <ArrowDownToLine className="size-3.5" />{syncing ? "同期中…" : "セミナー同期"}
@@ -453,6 +513,132 @@ export default function NewsletterPage() {
 
               </div>
             )}
+          </div>
+        )}
+
+        {/* ─── スマートタグパネル ─── */}
+        {showSmartTag && (
+          <div className="rounded-xl border border-border bg-card overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/20">
+              <Tag className="size-4 text-primary" />
+              <span className="text-sm font-semibold">スマートタグ</span>
+              <span className="text-xs text-muted-foreground">条件に合う購読者に一括でタグを付与</span>
+            </div>
+            <div className="p-4 space-y-4">
+              {/* ルール・テナント選択 */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">抽出ルール</label>
+                  <select
+                    value={smartTagRule}
+                    onChange={(e) => { setSmartTagRule(e.target.value); setSmartTagPreviewCount(null); }}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="member_domain">会員企業ドメインと一致するメールアドレス</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">テナント（ドメイン参照元）</label>
+                  <select
+                    value={smartTagTenant}
+                    onChange={(e) => { setSmartTagTenant(e.target.value); setSmartTagPreviewCount(null); }}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="whgc-seminars">WHGC セミナー</option>
+                    <option value="kgri-pic-center">KGRI PIC センター</option>
+                    <option value="aff-events">AFF イベント</option>
+                    <option value="pic-courses">PIC コース</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* プレビュー */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <Button variant="outline" size="sm" onClick={previewSmartTag} disabled={smartTagPreviewing} className="gap-1.5">
+                    <Search className="size-3.5" />{smartTagPreviewing ? "検索中…" : "対象者を確認"}
+                  </Button>
+                  {smartTagPreviewCount !== null && (
+                    <button
+                      type="button"
+                      onClick={() => setShowSmartTagList((v) => !v)}
+                      className={`flex items-center gap-1.5 text-sm font-medium transition-colors ${
+                        smartTagPreviewCount > 0
+                          ? "text-primary hover:text-primary/80"
+                          : "text-muted-foreground cursor-default"
+                      }`}
+                    >
+                      {smartTagPreviewCount > 0
+                        ? `${smartTagPreviewCount.toLocaleString()} 件が対象です`
+                        : "対象者が見つかりませんでした"}
+                      {smartTagPreviewCount > 0 && (
+                        showSmartTagList
+                          ? <ChevronUp className="size-3.5" />
+                          : <ChevronDown className="size-3.5" />
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                {/* 対象者リスト */}
+                {showSmartTagList && smartTagPreviewList.length > 0 && (
+                  <div className="rounded-lg border border-primary/20 overflow-hidden">
+                    <div className="px-3 py-2 bg-primary/5 border-b border-primary/10 flex items-center gap-2">
+                      <Tag className="size-3 text-primary" />
+                      <span className="text-xs font-medium text-primary">対象者一覧</span>
+                    </div>
+                    <div className="overflow-x-auto max-h-56 overflow-y-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-border bg-muted/20 text-left">
+                            <th className="px-3 py-2 font-medium text-muted-foreground">メールアドレス</th>
+                            <th className="px-3 py-2 font-medium text-muted-foreground">氏名</th>
+                            <th className="px-3 py-2 font-medium text-muted-foreground">会社・部署</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {smartTagPreviewList.map((s) => (
+                            <tr key={s.id} className="hover:bg-muted/20">
+                              <td className="px-3 py-2 font-mono">{s.email}</td>
+                              <td className="px-3 py-2">{s.name || "—"}</td>
+                              <td className="px-3 py-2 text-muted-foreground">
+                                {s.company}
+                                {s.department && <span className="ml-1 opacity-70">/ {s.department}</span>}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* タグ名・付与 */}
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="space-y-1 flex-1 min-w-48">
+                  <label className="text-xs font-medium text-muted-foreground">付与するタグ名</label>
+                  <Input
+                    value={smartTagName}
+                    onChange={(e) => setSmartTagName(e.target.value)}
+                    placeholder="例: WHGC会員企業"
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  onClick={applySmartTag}
+                  disabled={smartTagApplying || !smartTagName.trim()}
+                  className="gap-1.5 h-9"
+                >
+                  <Tag className="size-3.5" />{smartTagApplying ? "付与中…" : "タグを付与"}
+                </Button>
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                既にタグが付いている場合は重複せず、新規分のみ追加されます。
+              </p>
+            </div>
           </div>
         )}
 
