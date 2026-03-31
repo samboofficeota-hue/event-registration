@@ -442,6 +442,10 @@ function ListBuilder({ initial, onClose }: { initial: NewsletterList | null; onC
   const [smartTagApplying, setSmartTagApplying] = useState(false);
   const [smartTagSelectedIds, setSmartTagSelectedIds] = useState<Set<string>>(new Set());
   const [smartTagAddingMembers, setSmartTagAddingMembers] = useState(false);
+  const [smartTagTotal, setSmartTagTotal] = useState<number | null>(null);   // 全件数
+  const [smartTagOffset, setSmartTagOffset] = useState(0);                  // 現在のオフセット
+  const [smartTagHasMore, setSmartTagHasMore] = useState(false);            // 次のページあり
+  const [smartTagLoadingMore, setSmartTagLoadingMore] = useState(false);
 
   // ─ 検索結果 ─
   const [searching, setSearching] = useState(false);
@@ -477,7 +481,7 @@ function ListBuilder({ initial, onClose }: { initial: NewsletterList | null; onC
   const [sendProgress, setSendProgress] = useState<{ sent: number; total: number } | null>(null);
 
   const MEMBER_LIMIT = 50;
-  const SEARCH_LIMIT = 50;
+  const SEARCH_LIMIT = 200;
 
   // ─ メンバー読み込み ─
   const loadMembers = useCallback(async (page: number) => {
@@ -632,27 +636,50 @@ function ListBuilder({ initial, onClose }: { initial: NewsletterList | null; onC
     } catch { /* ignore */ }
   }
 
-  // ─ スマートタグ プレビュー ─
+  // ─ スマートタグ プレビュー（初回・リセット） ─
   async function previewSmartTag() {
     setSmartTagPreviewing(true);
     setSmartTagPreviewCount(null);
+    setSmartTagTotal(null);
     setSmartTagPreviewList([]);
     setSmartTagSelectedIds(new Set());
+    setSmartTagOffset(0);
+    setSmartTagHasMore(false);
     setShowSmartTagList(false);
     try {
       const res = await fetch("/api/newsletter/subscribers/bulk-tag", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rule: smartTagRule, tenant: smartTagTenant, preview: true }),
+        body: JSON.stringify({ rule: smartTagRule, tenant: smartTagTenant, preview: true, offset: 0 }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setSmartTagPreviewCount(data.count);
+      setSmartTagPreviewCount(data.count);       // このページの件数
+      setSmartTagTotal(data.total);              // 全件数
       setSmartTagPreviewList(data.subscribers ?? []);
-      // プレビュー後は自動で展開
-      if ((data.count ?? 0) > 0) setShowSmartTagList(true);
+      setSmartTagOffset(data.count);             // 次回のオフセット
+      setSmartTagHasMore(data.has_more ?? false);
+      if ((data.total ?? 0) > 0) setShowSmartTagList(true);
     } catch (e) { toast.error(e instanceof Error ? e.message : "プレビューに失敗しました"); }
     finally { setSmartTagPreviewing(false); }
+  }
+
+  // ─ スマートタグ 次の500件を追加読み込み ─
+  async function loadMoreSmartTag() {
+    setSmartTagLoadingMore(true);
+    try {
+      const res = await fetch("/api/newsletter/subscribers/bulk-tag", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rule: smartTagRule, tenant: smartTagTenant, preview: true, offset: smartTagOffset }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setSmartTagPreviewList((prev) => [...prev, ...(data.subscribers ?? [])]);
+      setSmartTagOffset((prev) => prev + (data.count ?? 0));
+      setSmartTagHasMore(data.has_more ?? false);
+    } catch (e) { toast.error(e instanceof Error ? e.message : "追加読み込みに失敗しました"); }
+    finally { setSmartTagLoadingMore(false); }
   }
 
   // ─ スマートタグ 選択者をリストに追加 ─
@@ -1017,8 +1044,10 @@ function ListBuilder({ initial, onClose }: { initial: NewsletterList | null; onC
                       <span className="text-xs font-medium text-primary">全件選択</span>
                     </label>
                     <span className="text-xs text-muted-foreground">
-                      全 {smartTagPreviewList.length.toLocaleString()} 件
-                      {smartTagPreviewList.length >= 500 && <span className="text-amber-600">（上限 500 件）</span>}
+                      {smartTagPreviewList.length.toLocaleString()} 件表示中
+                      {smartTagTotal !== null && (
+                        <span> / 全 <span className="font-medium text-foreground">{smartTagTotal.toLocaleString()}</span> 件</span>
+                      )}
                     </span>
                     {smartTagSelectedIds.size > 0 && (
                       <span className="text-xs text-primary font-semibold ml-auto">
@@ -1058,6 +1087,24 @@ function ListBuilder({ initial, onClose }: { initial: NewsletterList | null; onC
                       </tbody>
                     </table>
                   </div>
+                  {/* 次の500件を読み込む */}
+                  {smartTagHasMore && (
+                    <div className="px-3 py-2 border-t border-border flex justify-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={loadMoreSmartTag}
+                        disabled={smartTagLoadingMore}
+                        className="gap-1.5 w-full text-xs"
+                      >
+                        <ChevronDown className="size-3.5" />
+                        {smartTagLoadingMore
+                          ? "読み込み中…"
+                          : `次の 500 件を表示（残り ${(smartTagTotal! - smartTagPreviewList.length).toLocaleString()} 件）`}
+                      </Button>
+                    </div>
+                  )}
+
                   {/* リストに追加ボタン */}
                   <div className="px-3 py-2.5 border-t border-primary/10 bg-primary/5 flex items-center gap-3">
                     <Button

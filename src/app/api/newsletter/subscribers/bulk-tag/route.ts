@@ -5,20 +5,21 @@ import { getMemberDomainsForTenant } from "@/lib/google/sheets";
 import { isTenantKey } from "@/lib/tenant-config";
 
 // POST /api/newsletter/subscribers/bulk-tag
-// Body: { rule: "member_domain", tenant: string, tagNames?: string[], tagName?: string, preview?: boolean }
-// tagNames takes precedence over tagName (backward compat)
+// Body: { rule, tenant, tagNames?, tagName?, preview?, offset? }
+// offset: ページング用オフセット（プレビュー時のみ）
 export async function POST(request: NextRequest) {
   const ok = await verifyAdminRequest(request);
   if (!ok) return NextResponse.json({ error: "認証が必要です" }, { status: 401 });
 
   try {
     const body = await request.json();
-    const { rule, tenant, tagName, tagNames, preview = false } = body as {
+    const { rule, tenant, tagName, tagNames, preview = false, offset = 0 } = body as {
       rule: string;
       tenant: string;
       tagName?: string;
       tagNames?: string[];
       preview?: boolean;
+      offset?: number;
     };
 
     // tagNames (array) takes precedence; fall back to single tagName
@@ -47,12 +48,45 @@ export async function POST(request: NextRequest) {
       const domainConditions = domains.map(() => "LOWER(email) LIKE ?").join(" OR ");
       const domainBinds = domains.map((d) => `%@${d.toLowerCase()}`);
 
+      const PAGE_SIZE = 500;
+
+      // プレビュー時: 全件カウント + ページ分のデータを返す
+      if (preview) {
+        const countRow = await db
+          .prepare(`SELECT COUNT(*) as total FROM newsletter_subscribers WHERE (${domainConditions})`)
+          .bind(...domainBinds)
+          .first() as { total: number } | null;
+        const totalCount = countRow?.total ?? 0;
+
+        const rows = await db
+          .prepare(
+            `SELECT id, email, name, company, department
+             FROM newsletter_subscribers WHERE (${domainConditions})
+             ORDER BY company, email
+             LIMIT ? OFFSET ?`
+          )
+          .bind(...domainBinds, PAGE_SIZE, offset)
+          .all();
+
+        type Row = { id: string; email: string; name: string; company: string; department: string };
+        const pageRows = rows.results as Row[];
+
+        return NextResponse.json({
+          total: totalCount,           // 全件数
+          count: pageRows.length,      // 今回取得した件数
+          offset,
+          has_more: offset + PAGE_SIZE < totalCount,
+          subscribers: pageRows.map(({ id, email, name, company, department }) => ({
+            id, email, name, company, department,
+          })),
+        });
+      }
+
+      // タグ付与時: 全件に対して実行（offsetなし）
       const rows = await db
         .prepare(
-          `SELECT id, email, name, company, department
-           FROM newsletter_subscribers WHERE (${domainConditions})
-           ORDER BY company, email
-           LIMIT 500`
+          `SELECT id FROM newsletter_subscribers WHERE (${domainConditions})
+           ORDER BY company, email`
         )
         .bind(...domainBinds)
         .all();
@@ -60,15 +94,6 @@ export async function POST(request: NextRequest) {
       type Row = { id: string; email: string; name: string; company: string; department: string };
       const allRows = rows.results as Row[];
       subscriberIds = allRows.map((r) => r.id);
-
-      if (preview) {
-        return NextResponse.json({
-          count: allRows.length,
-          subscribers: allRows.map(({ id, email, name, company, department }) => ({
-            id, email, name, company, department,
-          })),
-        });
-      }
 
       // タグを付与（重複は無視・複数タグ対応）
       const db2 = await getD1();
