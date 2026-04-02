@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import type { EmailSchedule } from "@/lib/d1";
-import { RefreshCw, CalendarDays, ExternalLink, Clock, MapPin, Users, Video } from "lucide-react";
+import { RefreshCw, CalendarDays, ExternalLink, Clock, MapPin, Users, Video, X, List } from "lucide-react";
 
 const TENANT = "whgc-seminars";
 const ADMIN_BASE = "/whgc-seminars/manage-console";
@@ -34,6 +34,15 @@ interface SeminarInfo { id: string; title: string; date: string; status: string;
 type SeminarDetail = Record<string, any>;
 
 interface SeminarGroup { seminar: SeminarInfo; schedules: EmailSchedule[]; }
+interface Registrant {
+  id: string;
+  name: string;
+  email: string;
+  company: string;
+  department: string;
+  status: string;
+  created_at: string;
+}
 interface TemplateModal {
   templateId: string | null;
   seminarId: string;
@@ -97,6 +106,19 @@ export default function EmailSchedulesPage() {
   const [testEmail, setTestEmail] = useState("");
   const [testSending, setTestSending] = useState(false);
   const [templateModal, setTemplateModal] = useState<TemplateModal>(EMPTY_MODAL);
+  const [registrantsModal, setRegistrantsModal] = useState<{ seminar: SeminarInfo; data: Registrant[]; loading: boolean } | null>(null);
+
+  async function openRegistrantsModal(seminar: SeminarInfo) {
+    setRegistrantsModal({ seminar, data: [], loading: true });
+    try {
+      const res = await fetch(`/api/reservations?seminar_id=${seminar.id}`);
+      const data = await res.json();
+      setRegistrantsModal({ seminar, data: Array.isArray(data) ? data : [], loading: false });
+    } catch {
+      toast.error("予約者一覧の取得に失敗しました");
+      setRegistrantsModal(null);
+    }
+  }
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -331,11 +353,16 @@ export default function EmailSchedulesPage() {
                     開催日: {seminar.date ? new Date(seminar.date).toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric" }) : "未設定"}
                   </p>
                 </div>
-                <Link href={`${ADMIN_BASE}/seminars/${seminar.id}/email-schedule`}>
-                  <Button size="sm" variant="outline" className="gap-1.5 shrink-0">
-                    <ExternalLink className="size-3.5" />詳細
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button size="sm" variant="outline" className="gap-1.5" onClick={() => openRegistrantsModal(seminar)}>
+                    <List className="size-3.5" />予約者一覧
                   </Button>
-                </Link>
+                  <Link href={`${ADMIN_BASE}/seminars/${seminar.id}/email-schedule`}>
+                    <Button size="sm" variant="outline" className="gap-1.5">
+                      <ExternalLink className="size-3.5" />詳細
+                    </Button>
+                  </Link>
+                </div>
               </div>
 
               <div className="divide-y divide-border">
@@ -614,6 +641,89 @@ export default function EmailSchedulesPage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ===== 予約者一覧モーダル ===== */}
+      {registrantsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-xl border border-border bg-background shadow-2xl overflow-hidden">
+            {/* ヘッダー */}
+            <div className="flex items-center justify-between border-b border-border bg-muted/20 px-6 py-4 shrink-0">
+              <div>
+                <h2 className="text-base font-semibold text-foreground">予約者一覧</h2>
+                <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">{registrantsModal.seminar.title}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                {!registrantsModal.loading && (
+                  <span className="text-xs text-muted-foreground">
+                    {registrantsModal.data.filter(r => r.status !== "cancelled").length} 名（キャンセル除く）/ 計 {registrantsModal.data.length} 名
+                  </span>
+                )}
+                <button
+                  onClick={() => setRegistrantsModal(null)}
+                  className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* コンテンツ */}
+            <div className="flex-1 overflow-y-auto">
+              {registrantsModal.loading ? (
+                <div className="flex items-center justify-center gap-2 p-16 text-sm text-muted-foreground">
+                  <RefreshCw className="size-4 animate-spin" />読み込み中...
+                </div>
+              ) : registrantsModal.data.length === 0 ? (
+                <div className="flex items-center justify-center p-16 text-sm text-muted-foreground">
+                  予約者がいません
+                </div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-muted/80 backdrop-blur-sm border-b border-border">
+                    <tr>
+                      <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground w-8">#</th>
+                      <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">氏名</th>
+                      <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">メールアドレス</th>
+                      <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">会社名</th>
+                      <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">部署</th>
+                      <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">ステータス</th>
+                      <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">登録日</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {registrantsModal.data.map((r, i) => (
+                      <tr key={r.id} className={`hover:bg-muted/30 transition-colors ${r.status === "cancelled" ? "opacity-40" : ""}`}>
+                        <td className="px-4 py-2.5 text-xs text-muted-foreground">{i + 1}</td>
+                        <td className="px-4 py-2.5 font-medium">{r.name || "—"}</td>
+                        <td className="px-4 py-2.5 text-muted-foreground">{r.email || "—"}</td>
+                        <td className="px-4 py-2.5 text-muted-foreground">{r.company || "—"}</td>
+                        <td className="px-4 py-2.5 text-muted-foreground">{r.department || "—"}</td>
+                        <td className="px-4 py-2.5">
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                            r.status === "confirmed" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
+                            r.status === "cancelled" ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" :
+                            "bg-muted text-muted-foreground"
+                          }`}>
+                            {r.status === "confirmed" ? "確認済" : r.status === "cancelled" ? "キャンセル" : r.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                          {r.created_at ? new Date(r.created_at).toLocaleDateString("ja-JP") : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* フッター */}
+            <div className="flex justify-end border-t border-border px-6 py-3 shrink-0">
+              <Button variant="outline" size="sm" onClick={() => setRegistrantsModal(null)}>閉じる</Button>
+            </div>
           </div>
         </div>
       )}
