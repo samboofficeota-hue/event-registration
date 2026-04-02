@@ -54,7 +54,7 @@ export async function POST(
     const seminarVars = buildSeminarVars(seminar);
     const vars = { ...seminarVars, name: "（テスト）" };
 
-    const subject = `【テスト送信】${renderTemplate(template.subject, vars)}`;
+    const subject = `【テスト送信】${renderTemplate(template.subject, vars)}`.replace(/\n/g, " ").trim();
     const text = renderTemplate(template.body, vars);
     const html = buildHtmlEmail(text);
 

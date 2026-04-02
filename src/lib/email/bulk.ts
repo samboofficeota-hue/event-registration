@@ -212,7 +212,7 @@ export async function executeBulkSend(
 
   for (const participant of participants) {
     const vars = { ...seminarVars, name: participant.name };
-    const subject = renderTemplate(template.subject, vars);
+    const subject = renderTemplate(template.subject, vars).replace(/\n/g, " ").trim();
     const text = renderTemplate(template.body, vars);
     const html = buildHtmlEmail(text);
 
