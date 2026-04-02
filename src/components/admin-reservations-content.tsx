@@ -44,6 +44,7 @@ import {
   Ban,
   Plus,
   Clock,
+  Mail,
   MapPin,
   Users,
   ArrowRight,
@@ -428,6 +429,12 @@ export function AdminReservationsContent({
                     <Link href={`${adminBase}/seminars/${s.id}/edit`}>
                       <Pencil className="size-3.5" />
                       編集
+                    </Link>
+                  </Button>
+                  <Button variant="outline" size="sm" className="gap-1.5 text-[0.8125rem]" asChild>
+                    <Link href={`${adminBase}/seminars/${s.id}/email-schedule`}>
+                      <Mail className="size-3.5" />
+                      メール配信を設定
                     </Link>
                   </Button>
                   {s.status !== "cancelled" &&

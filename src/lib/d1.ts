@@ -38,6 +38,7 @@ export interface EmailSchedule {
   enabled: number; // 1 = ON, 0 = OFF
   status: "pending" | "sent" | "failed" | "cancelled";
   sent_at: string | null;
+  list_id: string | null; // 告知集客用スケジュールの送付リストID
   created_at: string;
   updated_at: string;
 }

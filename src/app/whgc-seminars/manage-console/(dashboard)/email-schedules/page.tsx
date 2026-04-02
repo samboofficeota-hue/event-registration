@@ -15,7 +15,12 @@ const TENANT = "whgc-seminars";
 const ADMIN_BASE = "/whgc-seminars/manage-console";
 
 const TEMPLATE_LABELS: Record<string, string> = {
-  reminder_30: "30日前案内",
+  // 【告知集客用】
+  announce_30: "30日前告知",
+  announce_14: "2週間前告知",
+  announce_7:  "1週間前告知",
+  // 【予約者向け】
+  reminder_30: "2週間前リマインド",
   reminder_7:  "7日前リマインド",
   reminder_1:  "前日リマインド",
   followup_1:  "御礼・アンケート",

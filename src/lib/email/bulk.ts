@@ -30,10 +30,11 @@ export function buildSeminarVars(seminar: Seminar): Record<string, string> {
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
   const meetUrlLine = seminar.meet_url ? `Meet URL：${seminar.meet_url}` : "";
+  const endTimeSuffix = seminar.end_time ? ` 〜 ${seminar.end_time}` : "";
 
   return {
     seminar_title: seminar.title ?? "",
-    date: dateStr,
+    date: dateStr + endTimeSuffix,
     format: formatMap[seminar.format ?? "online"] ?? "オンライン",
     speaker: seminar.speaker ?? "",
     description: seminar.description ?? "",
@@ -151,6 +152,108 @@ export function buildHtmlEmail(text: string, unsubscribeUrl?: string, headerColo
   </table>
 </body>
 </html>`;
+}
+
+// ---------------------------------------------------------------------------
+// ニュースレターリストメンバーへの一斉送信（告知集客用）
+// ---------------------------------------------------------------------------
+
+export async function executeListMemberSend(
+  db: D1Database,
+  scheduleId: number,
+  template: EmailTemplate,
+  listId: string,
+  seminarId: string,
+  tenant?: string | null
+): Promise<BulkSendResult> {
+  const seminarRow = await getSeminarByIdFromD1(seminarId);
+  if (!seminarRow) throw new Error(`セミナーが見つかりません: ${seminarId}`);
+  const seminar = d1SeminarToSeminar(seminarRow);
+
+  // リストメンバーを全件取得（500件ずつページネーション）
+  const allMembers: { email: string; name: string }[] = [];
+  let offset = 0;
+  while (true) {
+    const res = await db.prepare(
+      `SELECT s.email, s.name
+       FROM newsletter_list_members m
+       JOIN newsletter_subscribers s ON s.id = m.subscriber_id
+       WHERE m.list_id = ? AND s.status = 'active'
+       LIMIT 500 OFFSET ?`
+    ).bind(listId, offset).all();
+    const rows = (res.results ?? []) as { email: string; name: string }[];
+    allMembers.push(...rows);
+    if (rows.length < 500) break;
+    offset += 500;
+  }
+
+  if (allMembers.length === 0) return { total: 0, success: 0, failed: 0, logs: [] };
+
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) throw new Error("RESEND_API_KEY is not set");
+  const { Resend } = await import("resend");
+  const resend = new Resend(apiKey);
+
+  const fromEmail = process.env.RESEND_FROM_EMAIL ?? "noreply@events.allianceforum.org";
+  const seminarVars = buildSeminarVars(seminar);
+  const footerText = template.body?.includes("アライアンス・フォーラム財団") ? undefined : null;
+  const brand = BRAND_CONFIGS[detectBrand(footerText)];
+
+  const result: BulkSendResult = { total: allMembers.length, success: 0, failed: 0, logs: [] };
+  const now = new Date().toISOString();
+
+  // Resend batch API で100件ずつ送信
+  const BATCH_SIZE = 100;
+  for (let i = 0; i < allMembers.length; i += BATCH_SIZE) {
+    const batch = allMembers.slice(i, i + BATCH_SIZE);
+    const messages = batch.map((member) => {
+      const vars = { ...seminarVars, name: member.name || "" };
+      const subject = renderTemplate(template.subject, vars).replace(/[\r\n]/g, " ").replace(/\\n/g, " ").trim();
+      const text = renderTemplate(template.body, vars);
+      const html = buildHtmlEmail(text);
+      return {
+        from: `${brand.fromName} <${fromEmail}>`,
+        to: member.email,
+        subject,
+        html,
+        text,
+      };
+    });
+
+    try {
+      const { data, error } = await resend.batch.send(messages as any);
+      if (error) throw new Error((error as any).message ?? "batch send error");
+
+      const sent = (data as any)?.data ?? [];
+      for (let j = 0; j < batch.length; j++) {
+        const member = batch[j];
+        const resendId = sent[j]?.id ?? null;
+        result.success++;
+        result.logs.push({ recipient_email: member.email, recipient_name: member.name, status: "sent", resend_id: resendId });
+        await db.prepare(
+          `INSERT INTO email_send_logs (schedule_id, seminar_id, recipient_email, recipient_name, status, resend_id, sent_at)
+           VALUES (?, ?, ?, ?, 'sent', ?, ?)`
+        ).bind(scheduleId, seminarId, member.email, member.name, resendId, now).run();
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      for (const member of batch) {
+        result.failed++;
+        result.logs.push({ recipient_email: member.email, recipient_name: member.name, status: "failed", error_message: errorMessage });
+        await db.prepare(
+          `INSERT INTO email_send_logs (schedule_id, seminar_id, recipient_email, recipient_name, status, error_message, sent_at)
+           VALUES (?, ?, ?, ?, 'failed', ?, ?)`
+        ).bind(scheduleId, seminarId, member.email, member.name, errorMessage, now).run();
+      }
+    }
+  }
+
+  const finalStatus = result.failed === 0 ? "sent" : result.success > 0 ? "sent" : "failed";
+  await db.prepare(
+    `UPDATE email_schedules SET status = ?, sent_at = ?, updated_at = ? WHERE id = ?`
+  ).bind(finalStatus, now, now, scheduleId).run();
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------

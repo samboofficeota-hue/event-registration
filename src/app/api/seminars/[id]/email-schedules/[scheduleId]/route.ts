@@ -34,12 +34,13 @@ export async function PATCH(
     const enabled = body.enabled !== undefined ? (body.enabled ? 1 : 0) : existing.enabled;
     const scheduledDate = body.scheduled_date ?? existing.scheduled_date;
     const sendTime = body.send_time ?? existing.send_time;
+    const listId = body.list_id !== undefined ? (body.list_id ?? null) : existing.list_id;
 
     await db.prepare(
       `UPDATE email_schedules
-       SET enabled = ?, scheduled_date = ?, send_time = ?, updated_at = ?
+       SET enabled = ?, scheduled_date = ?, send_time = ?, list_id = ?, updated_at = ?
        WHERE id = ?`
-    ).bind(enabled, scheduledDate, sendTime, now, existing.id).run();
+    ).bind(enabled, scheduledDate, sendTime, listId, now, existing.id).run();
 
     const updated = (await db.prepare(
       "SELECT * FROM email_schedules WHERE id = ?"

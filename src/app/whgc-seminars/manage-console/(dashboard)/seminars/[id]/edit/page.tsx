@@ -361,14 +361,6 @@ export default function WhgcSeminarsEditSeminarPage({
               >
                 一覧に戻る
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="lg"
-                onClick={() => router.push(`${ADMIN_BASE}/seminars/${id}/email-schedule`)}
-              >
-                📨 メール配信設定
-              </Button>
             </div>
           </form>
         </CardContent>

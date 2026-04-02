@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getD1 } from "@/lib/d1";
 import type { EmailSchedule, EmailTemplate } from "@/lib/d1";
 import { verifyAdminRequest } from "@/lib/auth";
-import { executeBulkSend } from "@/lib/email/bulk";
+import { executeBulkSend, executeListMemberSend } from "@/lib/email/bulk";
 
 // POST /api/email-schedules/[scheduleId]/send
 // 管理者が任意のタイミングで手動送信する。
-// tenant を body に含めることでテナント対応。
+// - 告知集客用（announce_*）: schedule.list_id のリストメンバーに送信
+// - 予約者向け（reminder_*, followup_*）: セミナー参加者に送信
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ scheduleId: string }> }
@@ -45,7 +46,19 @@ export async function POST(
       return NextResponse.json({ error: "テンプレートが見つかりません" }, { status: 404 });
     }
 
-    const result = await executeBulkSend(db, schedule, template, schedule.seminar_id, tenant);
+    // 告知集客用テンプレートはリストメンバーに送信
+    const isAnnounce = schedule.template_id.startsWith("announce_");
+    let result;
+
+    if (isAnnounce) {
+      const listId = schedule.list_id;
+      if (!listId) {
+        return NextResponse.json({ error: "送付リストが設定されていません。メール配信設定でリストを選択してください。" }, { status: 400 });
+      }
+      result = await executeListMemberSend(db, schedule.id, template, listId, schedule.seminar_id, tenant);
+    } else {
+      result = await executeBulkSend(db, schedule, template, schedule.seminar_id, tenant);
+    }
 
     return NextResponse.json({
       success: true,

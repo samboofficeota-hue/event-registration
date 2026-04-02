@@ -5,10 +5,15 @@ import { verifyAdminRequest } from "@/lib/auth";
 
 // タイミング定義: template_id -> オフセット日数
 const SCHEDULE_OFFSETS: Record<string, number> = {
-  reminder_30: -30,
+  // 【予約者向け】
+  reminder_30: -14, // 2週間前リマインド
   reminder_7:  -7,
   reminder_1:  -1,
   followup_1:  +1,
+  // 【告知集客用】
+  announce_30: -30,
+  announce_14: -14,
+  announce_7:  -7,
 };
 
 function calcScheduledDate(seminarDate: string, offsetDays: number): string {
