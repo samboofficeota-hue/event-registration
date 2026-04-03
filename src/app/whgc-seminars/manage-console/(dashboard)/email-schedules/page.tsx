@@ -104,7 +104,7 @@ const EMPTY_MODAL: TemplateModal = {
 export default function EmailSchedulesPage() {
   const [groups, setGroups] = useState<SeminarGroup[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "pending" | "sent">("pending");
+  const [filter, setFilter] = useState<"all" | "pending" | "sent">("all");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editValues, setEditValues] = useState<{ scheduled_date: string; send_time: string }>({ scheduled_date: "", send_time: "" });
   const [testSendId, setTestSendId] = useState<number | null>(null);
@@ -319,7 +319,7 @@ export default function EmailSchedulesPage() {
 
         {/* フィルタータブ */}
         <div className="flex gap-2 border-b border-border">
-          {(["pending", "sent", "all"] as const).map((f) => (
+          {(["all", "pending", "sent"] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -363,7 +363,7 @@ export default function EmailSchedulesPage() {
                     <List className="size-3.5" />予約者一覧
                   </Button>
                   <Link href={`${ADMIN_BASE}/seminars/${seminar.id}/email-schedule`}>
-                    <Button size="sm" variant="outline" className="gap-1.5">
+                    <Button size="sm" className="gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90">
                       <ExternalLink className="size-3.5" />メール配信設定
                     </Button>
                   </Link>
