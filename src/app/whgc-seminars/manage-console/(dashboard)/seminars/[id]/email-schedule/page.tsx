@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import type { Seminar } from "@/lib/types";
 import type { EmailSchedule, EmailSendLog } from "@/lib/d1";
-import { Megaphone, Users, RefreshCw } from "lucide-react";
+import { Megaphone, Users } from "lucide-react";
 
 const TENANT = "whgc-seminars";
 const ADMIN_BASE = "/whgc-seminars/manage-console";
@@ -305,13 +305,6 @@ export default function WhgcSeminarEmailSchedulePage({
 
       {hasSchedules && (
         <>
-          <div className="flex justify-end">
-            <Button size="sm" variant="outline" onClick={handleGenerate} disabled={generating} className="gap-1.5">
-              <RefreshCw className={`size-3.5 ${generating ? "animate-spin" : ""}`} />
-              {generating ? "更新中..." : "日付を再計算"}
-            </Button>
-          </div>
-
           {/* ─── 【告知集客用】 ─── */}
           <Card className="border border-border bg-card">
             <CardHeader className="pb-3">

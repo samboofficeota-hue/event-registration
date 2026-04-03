@@ -135,10 +135,9 @@ export default function EmailSchedulesPage() {
         seminars.filter((s) => s.status !== "cancelled").map(async (seminar) => {
           try {
             const res = await fetch(`/api/seminars/${seminar.id}/email-schedules`);
-            if (!res.ok) return;
-            const schedules: EmailSchedule[] = await res.json();
-            if (schedules.length > 0) result.push({ seminar, schedules });
-          } catch { /* skip */ }
+            const schedules: EmailSchedule[] = res.ok ? await res.json() : [];
+            result.push({ seminar, schedules }); // スケジュール未生成でも表示する
+          } catch { result.push({ seminar, schedules: [] }); }
         })
       );
       result.sort((a, b) => new Date(a.seminar.date).getTime() - new Date(b.seminar.date).getTime());
@@ -282,7 +281,8 @@ export default function EmailSchedulesPage() {
         return true;
       }),
     }))
-    .filter((g) => g.schedules.length > 0);
+    // スケジュール未生成のセミナーは「すべて」タブのみ表示
+    .filter((g) => filter === "all" ? true : g.schedules.length > 0);
 
   const previewSubject = templateModal.seminarVars
     ? renderPreview(templateModal.subject, templateModal.seminarVars)
@@ -364,7 +364,7 @@ export default function EmailSchedulesPage() {
                   </Button>
                   <Link href={`${ADMIN_BASE}/seminars/${seminar.id}/email-schedule`}>
                     <Button size="sm" variant="outline" className="gap-1.5">
-                      <ExternalLink className="size-3.5" />詳細
+                      <ExternalLink className="size-3.5" />メール配信設定
                     </Button>
                   </Link>
                 </div>
