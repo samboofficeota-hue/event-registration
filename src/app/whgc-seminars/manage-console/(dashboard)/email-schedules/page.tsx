@@ -14,6 +14,8 @@ import { RefreshCw, CalendarDays, ExternalLink, Clock, MapPin, Users, Video, X, 
 const TENANT = "whgc-seminars";
 const ADMIN_BASE = "/whgc-seminars/manage-console";
 
+const ANNOUNCE_TEMPLATE_IDS = ["announce_30", "announce_14", "announce_7"];
+
 const TEMPLATE_LABELS: Record<string, string> = {
   // 【告知集客用】
   announce_30: "30日前告知",
@@ -377,8 +379,11 @@ export default function EmailSchedulesPage() {
                   const isEditing = editingId === schedule.id;
                   const isTestSendOpen = testSendId === schedule.id;
 
+                  const isAnnounce = ANNOUNCE_TEMPLATE_IDS.includes(schedule.template_id);
+                  const rowBg = isAnnounce ? "bg-orange-50 border-orange-100" : "bg-blue-50 border-blue-100";
+
                   return (
-                    <div key={schedule.id} className={`px-5 py-3.5 ${!schedule.enabled && !isSent ? "opacity-60" : ""}`}>
+                    <div key={schedule.id} className={`px-5 py-3.5 border-l-4 ${rowBg} ${!schedule.enabled && !isSent ? "opacity-60" : ""}`}>
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <span className="text-sm font-medium text-foreground shrink-0 w-28">
