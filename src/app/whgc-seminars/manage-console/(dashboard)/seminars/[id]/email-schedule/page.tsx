@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import type { Seminar } from "@/lib/types";
 import type { EmailSchedule, EmailSendLog } from "@/lib/d1";
-import { Megaphone, Users } from "lucide-react";
+import { Megaphone, Users, AlertTriangle, X } from "lucide-react";
 
 const TENANT = "whgc-seminars";
 const ADMIN_BASE = "/whgc-seminars/manage-console";
@@ -20,11 +20,9 @@ const ANNOUNCE_TEMPLATE_IDS = ["announce_30", "announce_14", "announce_7"];
 const REGISTRANT_TEMPLATE_IDS = ["reminder_30", "reminder_7", "reminder_1", "followup_1"];
 
 const TEMPLATE_LABELS: Record<string, string> = {
-  // 【告知集客用】
   announce_30: "30日前告知",
   announce_14: "2週間前告知",
   announce_7:  "1週間前告知",
-  // 【予約者向け】
   reminder_30: "2週間前リマインド",
   reminder_7:  "7日前リマインド",
   reminder_1:  "前日リマインド",
@@ -40,17 +38,79 @@ const STATUS_BADGE: Record<string, { label: string; variant: "default" | "second
 
 interface NewsletterList { id: string; name: string; preview_count: number; }
 
+// ─── 送信確認モーダル ──────────────────────────────────────
+function SendConfirmModal({
+  schedule,
+  seminarTitle,
+  onConfirm,
+  onCancel,
+}: {
+  schedule: EmailSchedule;
+  seminarTitle: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const isAnnounce = ANNOUNCE_TEMPLATE_IDS.includes(schedule.template_id);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-full max-w-md rounded-xl border border-border bg-white shadow-xl mx-4">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <div className="flex items-center gap-2 text-amber-600">
+            <AlertTriangle className="size-5" />
+            <span className="font-semibold text-base">送信確認</span>
+          </div>
+          <button onClick={onCancel} className="text-muted-foreground hover:text-foreground">
+            <X className="size-4" />
+          </button>
+        </div>
+        <div className="px-5 py-5 space-y-4">
+          <p className="text-sm text-muted-foreground">以下のメールを今すぐ送信します。この操作は取り消せません。</p>
+          <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 space-y-2 text-sm">
+            <div className="flex gap-2">
+              <span className="text-muted-foreground w-20 shrink-0">セミナー</span>
+              <span className="font-medium text-foreground leading-snug">{seminarTitle}</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-muted-foreground w-20 shrink-0">メール種別</span>
+              <span className="font-medium text-foreground">{TEMPLATE_LABELS[schedule.template_id] ?? schedule.template_id}</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-muted-foreground w-20 shrink-0">送信対象</span>
+              <span className="font-medium text-foreground">
+                {isAnnounce ? "メルマガリスト登録者" : "セミナー予約者"}
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-muted-foreground w-20 shrink-0">送信予定日</span>
+              <span className="font-medium text-foreground">{schedule.scheduled_date} {schedule.send_time}</span>
+            </div>
+          </div>
+          <p className="text-xs text-amber-600 font-medium">⚠️ 「今すぐ送信」は予定日時を無視して即時送信します</p>
+        </div>
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-border">
+          <Button variant="outline" size="sm" onClick={onCancel}>キャンセル</Button>
+          <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={onConfirm}>
+            今すぐ送信する
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── スケジュール行 ────────────────────────────────────────
 function ScheduleRow({
   schedule,
+  colorScheme,
   onToggle,
-  onSend,
+  onSendRequest,
   onSaveEdit,
   sendingId,
 }: {
   schedule: EmailSchedule;
+  colorScheme: "orange" | "blue";
   onToggle: (s: EmailSchedule) => void;
-  onSend: (s: EmailSchedule) => void;
+  onSendRequest: (s: EmailSchedule) => void;
   onSaveEdit: (scheduleId: number, values: { scheduled_date: string; send_time: string }) => void;
   sendingId: number | null;
 }) {
@@ -63,8 +123,12 @@ function ScheduleRow({
   const status = STATUS_BADGE[schedule.status] ?? STATUS_BADGE.pending;
   const isSent = schedule.status === "sent";
 
+  const bgClass = colorScheme === "orange"
+    ? "bg-orange-50 border-orange-100"
+    : "bg-blue-50 border-blue-100";
+
   return (
-    <div className={`rounded-lg border border-border bg-muted/20 p-4 space-y-3 ${!schedule.enabled && !isSent ? "opacity-60" : ""}`}>
+    <div className={`rounded-lg border p-4 space-y-3 ${bgClass} ${!schedule.enabled && !isSent ? "opacity-60" : ""}`}>
       <div className="flex items-center justify-between">
         <span className="text-sm font-semibold text-foreground">
           {TEMPLATE_LABELS[schedule.template_id] ?? schedule.template_id}
@@ -89,13 +153,13 @@ function ScheduleRow({
             <Label className="text-xs">送信日</Label>
             <Input type="date" value={editValues.scheduled_date}
               onChange={(e) => setEditValues((v) => ({ ...v, scheduled_date: e.target.value }))}
-              className="h-8 text-sm w-40" />
+              className="h-8 text-sm w-40 bg-white" />
           </div>
           <div className="space-y-1">
             <Label className="text-xs">送信時刻</Label>
             <Input type="time" value={editValues.send_time}
               onChange={(e) => setEditValues((v) => ({ ...v, send_time: e.target.value }))}
-              className="h-8 text-sm w-28" />
+              className="h-8 text-sm w-28 bg-white" />
           </div>
           <Button size="sm" onClick={() => { onSaveEdit(schedule.id, editValues); setEditing(false); }}>保存</Button>
           <Button size="sm" variant="outline" onClick={() => setEditing(false)}>キャンセル</Button>
@@ -113,8 +177,13 @@ function ScheduleRow({
           </p>
           {!isSent && (
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => setEditing(true)}>日時変更</Button>
-              <Button size="sm" disabled={!schedule.enabled || sendingId === schedule.id} onClick={() => onSend(schedule)}>
+              <Button size="sm" variant="outline" className="bg-white" onClick={() => setEditing(true)}>日時変更</Button>
+              <Button
+                size="sm" variant="outline"
+                className="bg-white border-red-300 text-red-600 hover:bg-red-50"
+                disabled={!schedule.enabled || sendingId === schedule.id}
+                onClick={() => onSendRequest(schedule)}
+              >
                 {sendingId === schedule.id ? "送信中..." : "今すぐ送信"}
               </Button>
             </div>
@@ -140,6 +209,9 @@ export default function WhgcSeminarEmailSchedulePage({
   const [generating, setGenerating] = useState(false);
   const [sendingId, setSendingId] = useState<number | null>(null);
 
+  // 送信確認モーダル
+  const [confirmSchedule, setConfirmSchedule] = useState<EmailSchedule | null>(null);
+
   // ニュースレターリスト（告知集客用）
   const [lists, setLists] = useState<NewsletterList[]>([]);
   const [selectedListId, setSelectedListId] = useState("");
@@ -151,7 +223,6 @@ export default function WhgcSeminarEmailSchedulePage({
       if (res.ok) {
         const data: EmailSchedule[] = await res.json();
         setSchedules(data);
-        // 既存の list_id を復元
         const withList = data.find(s => ANNOUNCE_TEMPLATE_IDS.includes(s.template_id) && s.list_id);
         if (withList?.list_id) setSelectedListId(withList.list_id);
       }
@@ -221,8 +292,16 @@ export default function WhgcSeminarEmailSchedulePage({
     }
   }
 
-  async function handleSend(schedule: EmailSchedule) {
-    if (!confirm(`「${TEMPLATE_LABELS[schedule.template_id]}」を今すぐ送信しますか？`)) return;
+  // 「今すぐ送信」→ まずモーダル表示
+  function handleSendRequest(schedule: EmailSchedule) {
+    setConfirmSchedule(schedule);
+  }
+
+  // モーダルで「今すぐ送信する」確定
+  async function handleSendConfirmed() {
+    if (!confirmSchedule) return;
+    const schedule = confirmSchedule;
+    setConfirmSchedule(null);
     setSendingId(schedule.id);
     try {
       const res = await fetch(`/api/email-schedules/${schedule.id}/send`, {
@@ -243,12 +322,33 @@ export default function WhgcSeminarEmailSchedulePage({
   }
 
   // 告知集客用スケジュール全件に list_id を保存
+  // ※ 告知スケジュールが未生成の場合は自動生成してから保存
   async function handleSaveListId() {
     if (!selectedListId) { toast.error("リストを選択してください"); return; }
-    const announceSchedules = schedules.filter(s => ANNOUNCE_TEMPLATE_IDS.includes(s.template_id));
-    if (announceSchedules.length === 0) { toast.error("告知集客用スケジュールを先に生成してください"); return; }
     setSavingList(true);
     try {
+      let announceSchedules = schedules.filter(s => ANNOUNCE_TEMPLATE_IDS.includes(s.template_id));
+
+      // 告知スケジュールが未生成なら自動生成
+      if (announceSchedules.length === 0) {
+        toast.info("告知集客用スケジュールを生成しています...");
+        const genRes = await fetch(`/api/seminars/${id}/email-schedules`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tenant: TENANT }),
+        });
+        if (!genRes.ok) throw new Error("スケジュールの生成に失敗しました");
+        // 生成後に再取得
+        const newRes = await fetch(`/api/seminars/${id}/email-schedules`);
+        if (newRes.ok) {
+          const newSchedules: EmailSchedule[] = await newRes.json();
+          setSchedules(newSchedules);
+          announceSchedules = newSchedules.filter(s => ANNOUNCE_TEMPLATE_IDS.includes(s.template_id));
+        }
+      }
+
+      if (announceSchedules.length === 0) throw new Error("告知スケジュールの生成に失敗しました");
+
       await Promise.all(announceSchedules.map(s =>
         fetch(`/api/seminars/${id}/email-schedules/${s.id}`, {
           method: "PATCH",
@@ -258,8 +358,8 @@ export default function WhgcSeminarEmailSchedulePage({
       ));
       await loadSchedules();
       toast.success("送付リストを保存しました");
-    } catch {
-      toast.error("保存に失敗しました");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "保存に失敗しました");
     } finally {
       setSavingList(false);
     }
@@ -275,6 +375,16 @@ export default function WhgcSeminarEmailSchedulePage({
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
+      {/* 送信確認モーダル */}
+      {confirmSchedule && (
+        <SendConfirmModal
+          schedule={confirmSchedule}
+          seminarTitle={seminar?.title ?? ""}
+          onConfirm={handleSendConfirmed}
+          onCancel={() => setConfirmSchedule(null)}
+        />
+      )}
+
       {/* ヘッダー */}
       <div className="space-y-3">
         <div className="flex items-start justify-between gap-4">
@@ -316,7 +426,7 @@ export default function WhgcSeminarEmailSchedulePage({
       {hasSchedules && (
         <>
           {/* ─── 【告知集客用】 ─── */}
-          <Card className="border border-border bg-card">
+          <Card className="border border-orange-200 bg-card">
             <CardHeader className="pb-3">
               <CardTitle className="text-base text-foreground flex items-center gap-2">
                 <Megaphone className="size-4 text-orange-500" />
@@ -325,13 +435,13 @@ export default function WhgcSeminarEmailSchedulePage({
             </CardHeader>
             <CardContent className="space-y-4">
               {/* 送付リスト選択 */}
-              <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+              <div className="rounded-lg border border-orange-100 bg-orange-50 p-3 space-y-2">
                 <label className="text-xs font-medium text-muted-foreground">送付リスト</label>
                 <div className="flex items-center gap-2">
                   <select
                     value={selectedListId}
                     onChange={(e) => setSelectedListId(e.target.value)}
-                    className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                    className="flex-1 rounded-md border border-input bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                   >
                     <option value="">-- リストを選択 --</option>
                     {lists.map((l) => (
@@ -353,22 +463,29 @@ export default function WhgcSeminarEmailSchedulePage({
 
               {/* 告知スケジュール */}
               <div className="space-y-2">
-                {announceSchedules.map((schedule) => (
-                  <ScheduleRow
-                    key={schedule.id}
-                    schedule={schedule}
-                    onToggle={handleToggleEnabled}
-                    onSend={handleSend}
-                    onSaveEdit={handleSaveEdit}
-                    sendingId={sendingId}
-                  />
-                ))}
+                {announceSchedules.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-2">
+                    送付リストを選択して「保存」すると自動生成されます
+                  </p>
+                ) : (
+                  announceSchedules.map((schedule) => (
+                    <ScheduleRow
+                      key={schedule.id}
+                      schedule={schedule}
+                      colorScheme="orange"
+                      onToggle={handleToggleEnabled}
+                      onSendRequest={handleSendRequest}
+                      onSaveEdit={handleSaveEdit}
+                      sendingId={sendingId}
+                    />
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>
 
           {/* ─── 【予約者向け】 ─── */}
-          <Card className="border border-border bg-card">
+          <Card className="border border-blue-200 bg-card">
             <CardHeader className="pb-3">
               <CardTitle className="text-base text-foreground flex items-center gap-2">
                 <Users className="size-4 text-blue-500" />
@@ -380,8 +497,9 @@ export default function WhgcSeminarEmailSchedulePage({
                 <ScheduleRow
                   key={schedule.id}
                   schedule={schedule}
+                  colorScheme="blue"
                   onToggle={handleToggleEnabled}
-                  onSend={handleSend}
+                  onSendRequest={handleSendRequest}
                   onSaveEdit={handleSaveEdit}
                   sendingId={sendingId}
                 />
