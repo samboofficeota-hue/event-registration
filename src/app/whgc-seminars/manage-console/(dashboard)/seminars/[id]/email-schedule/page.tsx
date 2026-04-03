@@ -276,14 +276,24 @@ export default function WhgcSeminarEmailSchedulePage({
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       {/* ヘッダー */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="space-y-3">
+        <div className="flex items-start justify-between gap-4">
           <h1 className="text-2xl font-bold text-foreground">メール配信設定</h1>
-          {seminar && <p className="mt-1 text-sm text-muted-foreground line-clamp-1">{seminar.title}</p>}
+          <Button variant="outline" className="shrink-0" onClick={() => router.push(`${ADMIN_BASE}/seminars/${id}/edit`)}>
+            セミナー編集へ
+          </Button>
         </div>
-        <Button variant="outline" onClick={() => router.push(`${ADMIN_BASE}/seminars/${id}/edit`)}>
-          セミナー編集へ
-        </Button>
+        {seminar && (
+          <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 space-y-1">
+            <p className="text-base font-semibold text-foreground leading-snug">{seminar.title}</p>
+            <p className="text-sm text-muted-foreground">
+              開催日：{new Date(seminar.date).toLocaleDateString("ja-JP", {
+                year: "numeric", month: "long", day: "numeric", weekday: "short",
+              })}
+              {seminar.end_time ? `　〜 ${seminar.end_time}` : ""}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* スケジュール未生成 */}
