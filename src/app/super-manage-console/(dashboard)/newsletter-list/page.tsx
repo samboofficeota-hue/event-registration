@@ -154,7 +154,14 @@ export default function NewsletterListPage() {
     const fallback = allCampaigns.find((c) => c.status === "draft" || c.status === "scheduled");
     const picked = existing ?? fallback ?? null;
     setSchedCampaignId(picked?.id ?? "");
-    setSchedDateTime(existing?.scheduled_at ? new Date(existing.scheduled_at).toISOString().slice(0, 16) : "");
+    // UTC → JST に変換して datetime-local 入力欄にセット（+9時間）
+    if (existing?.scheduled_at) {
+      const utcMs = new Date(existing.scheduled_at).getTime();
+      const jstIso = new Date(utcMs + 9 * 60 * 60 * 1000).toISOString().slice(0, 16);
+      setSchedDateTime(jstIso);
+    } else {
+      setSchedDateTime("");
+    }
     setScheduleModal(list);
   }
 
