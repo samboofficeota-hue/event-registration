@@ -1,5 +1,5 @@
 import { getTheme } from "./themes";
-import { BRAND_CONFIGS, detectBrand } from "./bulk";
+import { BRAND_CONFIGS, detectBrand } from "./brand";
 
 /**
  * プレーンテキストのメール本文から、クライアントサイドでHTML プレビューを生成する。

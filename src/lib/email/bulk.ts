@@ -7,6 +7,11 @@ import {
 import type { D1Database, EmailTemplate, EmailSchedule } from "@/lib/d1";
 import type { Seminar } from "@/lib/types";
 import { getTheme } from "@/lib/email/themes";
+import { BRAND_CONFIGS, detectBrand } from "@/lib/email/brand";
+
+// Re-export for backward compat
+export { BRAND_CONFIGS, detectBrand } from "@/lib/email/brand";
+export type { BrandKey } from "@/lib/email/brand";
 
 // ---------------------------------------------------------------------------
 // テンプレート変数の置換
@@ -50,31 +55,8 @@ export function buildSeminarVars(seminar: Seminar): Record<string, string> {
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// ブランド設定
+// ブランド設定（brand.ts に移動済み・re-export のみ）
 // ---------------------------------------------------------------------------
-
-export const BRAND_CONFIGS = {
-  whgc: {
-    headerTitle:      "WHGC ゲームチェンジャーズ・フォーラム",
-    footerSenderText: "このメールは WHGC ゲームチェンジャーズ・フォーラム がお送りしています。",
-    contactEmail:     "info@whgcforum.org",
-    fromName:         "WHGC ゲームチェンジャーズ・フォーラム",
-  },
-  aff: {
-    headerTitle:      "アライアンス・フォーラム財団",
-    footerSenderText: "このメールは アライアンス・フォーラム財団がお送りしています。",
-    contactEmail:     "contact@allianceforum.org",
-    fromName:         "アライアンス・フォーラム財団",
-  },
-} as const;
-
-export type BrandKey = keyof typeof BRAND_CONFIGS;
-
-/** footer_text の内容からブランドを判定する */
-export function detectBrand(footerText?: string | null): BrandKey {
-  if (footerText?.includes("アライアンス・フォーラム財団")) return "aff";
-  return "whgc";
-}
 
 /**
  * プレーンテキストのメール本文から、レスポンシブ HTML メールを生成する。
