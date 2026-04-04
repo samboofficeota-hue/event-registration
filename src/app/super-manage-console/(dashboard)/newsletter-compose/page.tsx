@@ -17,8 +17,8 @@ import type { TenantKey } from "@/lib/tenant-config";
 import Link from "next/link";
 import { EMAIL_THEMES } from "@/lib/email/themes";
 import { buildPreviewHtml } from "@/lib/email/client-preview";
-import { BRAND_CONFIGS, detectBrand } from "@/lib/email/bulk";
-import type { BrandKey } from "@/lib/email/bulk";
+import { BRAND_CONFIGS, detectBrand } from "@/lib/email/brand";
+import type { BrandKey } from "@/lib/email/brand";
 
 // ─── 型定義 ──────────────────────────────────────────────────────────────────
 
