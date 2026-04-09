@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getD1 } from "@/lib/d1";
 import type { EmailSchedule, EmailTemplate } from "@/lib/d1";
-import { executeBulkSend } from "@/lib/email/bulk";
+import { executeBulkSend, executeListMemberSend } from "@/lib/email/bulk";
 
 // POST /api/email-schedules/process
 // Cloudflare Workers の Cron Trigger から呼び出される。
@@ -63,7 +63,18 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        const result = await executeBulkSend(db, schedule, template, schedule.seminar_id);
+        // 告知集客用（announce_*）はリストメンバーに送信、それ以外は予約者に送信
+        const isAnnounce = schedule.template_id.startsWith("announce_");
+        let result;
+        if (isAnnounce) {
+          if (!schedule.list_id) {
+            console.error(`[Cron] announce schedule ${schedule.id} has no list_id, skipping`);
+            continue;
+          }
+          result = await executeListMemberSend(db, schedule.id, template, schedule.list_id, schedule.seminar_id, null);
+        } else {
+          result = await executeBulkSend(db, schedule, template, schedule.seminar_id, null);
+        }
         processed.push({
           schedule_id: schedule.id,
           seminar_id: schedule.seminar_id,
