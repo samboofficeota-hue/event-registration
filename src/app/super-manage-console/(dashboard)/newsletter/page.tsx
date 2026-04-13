@@ -263,9 +263,13 @@ export default function NewsletterPage() {
         "email": "email", "e-mail": "email", "mail": "email", "メール": "email",
         "メールアドレス": "email", "email(1)": "email", "email（1）": "email",
         "e-mail(1)": "email", "メール(1)": "email",
-        // name
+        // name（フルネーム列）
         "name": "name", "氏名": "name", "名前": "name", "お名前": "name",
         "フルネーム": "name", "担当者名": "name",
+        // 姓・名を別列で持つCSV（Sansanなど）→ 後で結合
+        "姓": "last_name", "名": "first_name",
+        "last_name": "last_name", "first_name": "first_name",
+        "family_name": "last_name", "given_name": "first_name",
         // company
         "company": "company", "会社名": "company", "会社": "company",
         "勤務先": "company", "所属": "company", "organization": "company",
@@ -292,6 +296,10 @@ export default function NewsletterPage() {
         const values = line.split(",").map((v) => v.trim().replace(/^"|"$/g, ""));
         const row: Record<string, string> = {};
         headers.forEach((h, i) => { row[h] = values[i] ?? ""; });
+        // 姓・名が別列の場合、「姓 名」順で name に結合（name 列が空の場合のみ）
+        if (!row.name && (row.last_name || row.first_name)) {
+          row.name = [row.last_name, row.first_name].filter(Boolean).join(" ");
+        }
         return row;
       });
 
