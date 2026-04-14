@@ -46,7 +46,9 @@ export async function POST(
 
     // ── テスト送信 ──────────────────────────────────────────
     if (testEmail) {
-      const html = buildHtmlEmail(campaign.body, undefined, campaign.header_color, campaign.footer_text);
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://events.allianceforum.org";
+      const testUnsubscribeUrl = `${appUrl}/unsubscribe?id=test-preview`;
+      const html = buildHtmlEmail(campaign.body, testUnsubscribeUrl, campaign.header_color, campaign.footer_text);
       const { error } = await resend.emails.send({
         from: `${fromName} <${fromEmail}>`,
         to: testEmail,

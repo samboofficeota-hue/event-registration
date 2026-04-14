@@ -64,7 +64,7 @@ export async function PUT(
   const { id } = await params;
   try {
     const body = await request.json();
-    const { subject, body: emailBody, recipient_tags, scheduled_at, status, header_color, list_id } = body;
+    const { subject, body: emailBody, recipient_tags, scheduled_at, status, header_color, footer_text, list_id } = body;
 
     const db = await getD1();
     const now = new Date().toISOString();
@@ -81,6 +81,7 @@ export async function PUT(
     if ("recipient_tags" in body){ setClauses.push("recipient_tags = ?"); bindValues.push(JSON.stringify(recipient_tags ?? [])); }
     if ("scheduled_at" in body)  { setClauses.push("scheduled_at = ?");   bindValues.push(scheduled_at ?? null); }
     if ("header_color" in body)  { setClauses.push("header_color = ?");   bindValues.push(header_color ?? "dark"); }
+    if ("footer_text" in body)   { setClauses.push("footer_text = ?");    bindValues.push(footer_text ?? null); }
     if ("list_id" in body)       { setClauses.push("list_id = ?");        bindValues.push(list_id ?? null); }
     if (newStatus)               { setClauses.push("status = ?");         bindValues.push(newStatus); }
 
