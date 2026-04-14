@@ -51,7 +51,7 @@ function UnsubscribeInner() {
         {/* ヘッダー */}
         <div style={{ backgroundColor: "#18181b", padding: "20px 32px" }}>
           <p style={{ margin: 0, color: "#ffffff", fontSize: 15, fontWeight: 600, letterSpacing: "0.04em" }}>
-            WHGC ゲームチェンジャーズ・フォーラム
+            メールマガジン 配信停止
           </p>
         </div>
 
@@ -75,9 +75,22 @@ function UnsubscribeInner() {
                 メルマガ配信停止
               </h1>
               <p style={{ margin: "0 0 24px", color: "#71717a", fontSize: 14, lineHeight: 1.8 }}>
-                WHGC ゲームチェンジャーズ・フォーラムからのメールマガジンの配信を停止します。<br />
+                以下の団体からのメールマガジンの配信を停止します。<br />
                 よろしければ下のボタンをクリックしてください。
               </p>
+              {/* 両団体の明示 */}
+              <div style={{
+                margin: "0 0 24px",
+                padding: "14px 18px",
+                backgroundColor: "#f4f4f5",
+                borderRadius: 8,
+                fontSize: 13,
+                color: "#3f3f46",
+                lineHeight: 1.9,
+              }}>
+                ・アライアンス・フォーラム財団<br />
+                ・WHGC ゲームチェンジャーズ・フォーラム
+              </div>
               <button
                 onClick={handleUnsubscribe}
                 style={{
@@ -96,7 +109,7 @@ function UnsubscribeInner() {
                 配信停止を確定する
               </button>
               <p style={{ margin: "16px 0 0", color: "#a1a1aa", fontSize: 12 }}>
-                ※ 再度受信を希望される場合は、事務局（info@whgcforum.org）までご連絡ください。
+                ※ 再度受信を希望される場合は、各団体の事務局までご連絡ください。
               </p>
             </>
           )}
@@ -127,12 +140,15 @@ function UnsubscribeInner() {
                   配信停止が完了しました
                 </h1>
               </div>
-              <p style={{ margin: 0, color: "#71717a", fontSize: 14, lineHeight: 1.8 }}>
+              <p style={{ margin: "0 0 20px", color: "#71717a", fontSize: 14, lineHeight: 1.8 }}>
                 {email && <><strong style={{ color: "#18181b" }}>{email}</strong> への<br /></>}
                 メールマガジンの配信を停止しました。<br />
-                今後このアドレスへのメール配信は行われません。<br /><br />
-                再度受信を希望される場合は、<br />
-                事務局（<a href="mailto:info@whgcforum.org" style={{ color: "#6366f1" }}>info@whgcforum.org</a>）までご連絡ください。
+                今後このアドレスへのメール配信は行われません。
+              </p>
+              <p style={{ margin: 0, color: "#71717a", fontSize: 14, lineHeight: 1.8 }}>
+                再度受信を希望される場合は、各団体の事務局までご連絡ください。<br />
+                <a href="mailto:contact@allianceforum.org" style={{ color: "#6366f1" }}>contact@allianceforum.org</a>（アライアンス・フォーラム財団）<br />
+                <a href="mailto:info@whgcforum.org" style={{ color: "#6366f1" }}>info@whgcforum.org</a>（WHGC ゲームチェンジャーズ・フォーラム）
               </p>
             </>
           )}
@@ -171,8 +187,10 @@ function UnsubscribeInner() {
           backgroundColor: "#fafafa",
           borderTop: "1px solid #e4e4e7",
         }}>
-          <p style={{ margin: 0, color: "#a1a1aa", fontSize: 11, lineHeight: 1.8 }}>
-            WHGC ゲームチェンジャーズ・フォーラム事務局<br />
+          <p style={{ margin: 0, color: "#a1a1aa", fontSize: 11, lineHeight: 1.9 }}>
+            アライアンス・フォーラム財団 ／ WHGC ゲームチェンジャーズ・フォーラム<br />
+            <a href="mailto:contact@allianceforum.org" style={{ color: "#a1a1aa" }}>contact@allianceforum.org</a>
+            　／
             <a href="mailto:info@whgcforum.org" style={{ color: "#a1a1aa" }}>info@whgcforum.org</a>
           </p>
         </div>
