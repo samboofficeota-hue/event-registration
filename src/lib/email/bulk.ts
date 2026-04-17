@@ -153,17 +153,17 @@ export async function executeListMemberSend(
   const seminar = d1SeminarToSeminar(seminarRow);
 
   // リストメンバーを全件取得（500件ずつページネーション）
-  const allMembers: { email: string; name: string }[] = [];
+  const allMembers: { id: string; email: string; name: string }[] = [];
   let offset = 0;
   while (true) {
     const res = await db.prepare(
-      `SELECT s.email, s.name
+      `SELECT s.id, s.email, s.name
        FROM newsletter_list_members m
        JOIN newsletter_subscribers s ON s.id = m.subscriber_id
        WHERE m.list_id = ? AND s.status = 'active'
        LIMIT 500 OFFSET ?`
     ).bind(listId, offset).all();
-    const rows = (res.results ?? []) as { email: string; name: string }[];
+    const rows = (res.results ?? []) as { id: string; email: string; name: string }[];
     allMembers.push(...rows);
     if (rows.length < 500) break;
     offset += 500;
@@ -186,16 +186,18 @@ export async function executeListMemberSend(
 
   // Resend batch API で100件ずつ送信
   // resend_id が返らなかったメンバーを再送するためのキュー
-  const retryQueue: { email: string; name: string }[] = [];
+  const retryQueue: { id: string; email: string; name: string }[] = [];
   const BATCH_SIZE = 100;
 
   for (let i = 0; i < allMembers.length; i += BATCH_SIZE) {
     const batch = allMembers.slice(i, i + BATCH_SIZE);
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://events.allianceforum.org";
     const messages = batch.map((member) => {
       const vars = { ...seminarVars, name: member.name || "" };
       const subject = renderTemplate(template.subject, vars).replace(/[\r\n]/g, " ").replace(/\\n/g, " ").trim();
       const text = renderTemplate(template.body, vars);
-      const html = buildHtmlEmail(text);
+      const unsubscribeUrl = `${appUrl}/unsubscribe?id=${member.id}`;
+      const html = buildHtmlEmail(text, unsubscribeUrl);
       return {
         from: `${brand.fromName} <${fromEmail}>`,
         to: member.email,
@@ -244,11 +246,13 @@ export async function executeListMemberSend(
   // バッチで resend_id が取得できなかったメンバーを1件ずつ再送
   if (retryQueue.length > 0) {
     console.log(`[executeListMemberSend] Retrying ${retryQueue.length} emails individually`);
+    const retryAppUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://events.allianceforum.org";
     for (const member of retryQueue) {
       const vars = { ...seminarVars, name: member.name || "" };
       const subject = renderTemplate(template.subject, vars).replace(/[\r\n]/g, " ").replace(/\\n/g, " ").trim();
       const text = renderTemplate(template.body, vars);
-      const html = buildHtmlEmail(text);
+      const unsubscribeUrl = `${retryAppUrl}/unsubscribe?id=${member.id}`;
+      const html = buildHtmlEmail(text, unsubscribeUrl);
       try {
         const { data: retryData, error: retryError } = await resend.emails.send({
           from: `${brand.fromName} <${fromEmail}>`,
