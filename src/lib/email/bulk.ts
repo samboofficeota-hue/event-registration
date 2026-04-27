@@ -208,26 +208,45 @@ export async function executeListMemberSend(
     });
 
     try {
-      const { data, error } = await resend.batch.send(messages as any);
+      const { data, error } = await resend.batch.send(messages as any, { batchValidation: "permissive" });
       if (error) throw new Error((error as any).message ?? "batch send error");
 
+      // permissive モードでは data.data に成功分のみ、data.errors に失敗分のインデックスと理由が入る
       const sent = (data as any)?.data ?? [];
+      const batchErrors: { index: number; message: string }[] = (data as any)?.errors ?? [];
+      const failedIndices = new Map(batchErrors.map((e) => [e.index, e.message]));
+
+      let successDataIdx = 0;
       for (let j = 0; j < batch.length; j++) {
         const member = batch[j];
-        const resendId = sent[j]?.id ?? null;
+        const errorMsg = failedIndices.get(j);
 
-        if (resendId) {
-          // Resend から ID が返ってきた → 正常送信
-          result.success++;
-          result.logs.push({ recipient_email: member.email, recipient_name: member.name, status: "sent", resend_id: resendId });
+        if (errorMsg !== undefined) {
+          // このメールアドレスが個別に拒否された（不正フォーマット等）
+          console.warn(`[executeListMemberSend] Resend rejected email for ${member.email}: ${errorMsg}`);
+          result.failed++;
+          result.logs.push({ recipient_email: member.email, recipient_name: member.name, status: "failed", error_message: errorMsg });
           await db.prepare(
-            `INSERT INTO email_send_logs (schedule_id, seminar_id, recipient_email, recipient_name, status, resend_id, sent_at)
-             VALUES (?, ?, ?, ?, 'sent', ?, ?)`
-          ).bind(scheduleId, seminarId, member.email, member.name, resendId, now).run();
+            `INSERT INTO email_send_logs (schedule_id, seminar_id, recipient_email, recipient_name, status, error_message, sent_at)
+             VALUES (?, ?, ?, ?, 'failed', ?, ?)`
+          ).bind(scheduleId, seminarId, member.email, member.name, errorMsg, now).run();
         } else {
-          // resend_id が null → Resend に届いていない可能性あり → 再送キューへ
-          console.warn(`[executeListMemberSend] resend_id not returned for ${member.email}, queuing for retry`);
-          retryQueue.push(member);
+          // 成功分。data.data は成功メールのみを順に格納しているので専用カウンタで参照
+          const resendId = sent[successDataIdx]?.id ?? null;
+          successDataIdx++;
+
+          if (resendId) {
+            result.success++;
+            result.logs.push({ recipient_email: member.email, recipient_name: member.name, status: "sent", resend_id: resendId });
+            await db.prepare(
+              `INSERT INTO email_send_logs (schedule_id, seminar_id, recipient_email, recipient_name, status, resend_id, sent_at)
+               VALUES (?, ?, ?, ?, 'sent', ?, ?)`
+            ).bind(scheduleId, seminarId, member.email, member.name, resendId, now).run();
+          } else {
+            // resend_id が null → 再送キューへ
+            console.warn(`[executeListMemberSend] resend_id not returned for ${member.email}, queuing for retry`);
+            retryQueue.push(member);
+          }
         }
       }
     } catch (err) {
