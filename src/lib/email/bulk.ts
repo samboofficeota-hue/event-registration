@@ -138,6 +138,65 @@ export function buildHtmlEmail(text: string, unsubscribeUrl?: string, headerColo
 }
 
 // ---------------------------------------------------------------------------
+// Resend batch.send レスポンスのパース（全送信経路で共有）
+// ---------------------------------------------------------------------------
+
+export interface BatchSendItemResult {
+  /** 送信成功時の Resend メッセージ ID。未取得なら null */
+  resendId: string | null;
+  /**
+   * 送信失敗（Resend が個別 or バッチ全体を拒否）時のエラー文言。
+   * 「成功枠だが id が返らなかった」曖昧ケースは resendId=null かつ errorMessage=null とし、
+   * 呼び出し側に判断（再送 or 失敗扱い）を委ねる。
+   */
+  errorMessage: string | null;
+}
+
+/**
+ * Resend の batch.send を permissive モードで実行し、入力 messages と同じ並び順で
+ * 1 件ごとの結果（resend_id か エラー文言）を返す。
+ *
+ * Resend の成功レスポンスは { data: [{id}], errors: [{index, message}] } 構造で、
+ * data 配列には成功分のみが順に詰められる（失敗分は errors にインデックス付きで入る）。
+ * このパースを各送信ルートでコピー実装していたため、`batchData` を直接配列参照する等の
+ * 取り違えで「実際は送信済みなのに全件 resend_id=null → failed 記録」という事故が
+ * 繰り返し発生した（bf5282d で即時送信のみ修正、予約配信ルートが直し漏れ）。
+ * 再発防止のためパースをこの 1 関数に集約する。
+ */
+export async function sendBatchWithResults(
+  resend: Resend,
+  messages: Array<{ from: string; to: string; subject: string; html: string; text: string }>
+): Promise<BatchSendItemResult[]> {
+  const { data, error } = await resend.batch.send(messages as any, { batchValidation: "permissive" });
+
+  // バッチ全体が失敗 → 全件を同一エラーで失敗扱い
+  if (error) {
+    const msg = (error as { message?: string }).message ?? "batch send error";
+    return messages.map(() => ({ resendId: null, errorMessage: msg }));
+  }
+
+  const sent = ((data as any)?.data ?? []) as Array<{ id?: string }>;
+  const batchErrors = ((data as any)?.errors ?? []) as Array<{ index: number; message: string }>;
+  const failedIndices = new Map(batchErrors.map((e) => [e.index, e.message]));
+
+  const results: BatchSendItemResult[] = [];
+  let successIdx = 0;
+  for (let i = 0; i < messages.length; i++) {
+    const rejected = failedIndices.get(i);
+    if (rejected !== undefined) {
+      // このアドレスが個別に拒否された（不正フォーマット等）
+      results.push({ resendId: null, errorMessage: rejected });
+    } else {
+      const resendId = sent[successIdx]?.id ?? null;
+      successIdx++;
+      // id が取れなければ曖昧ケース（errorMessage=null）として呼び出し側に委ねる
+      results.push({ resendId, errorMessage: null });
+    }
+  }
+  return results;
+}
+
+// ---------------------------------------------------------------------------
 // ニュースレターリストメンバーへの一斉送信（告知集客用）
 // ---------------------------------------------------------------------------
 
@@ -209,45 +268,33 @@ export async function executeListMemberSend(
     });
 
     try {
-      const { data, error } = await resend.batch.send(messages as any, { batchValidation: "permissive" });
-      if (error) throw new Error((error as any).message ?? "batch send error");
+      // batch.send のレスポンスパースは共通ヘルパーに集約（経路ごとの取り違え事故を防止）
+      const results = await sendBatchWithResults(resend, messages);
 
-      // permissive モードでは data.data に成功分のみ、data.errors に失敗分のインデックスと理由が入る
-      const sent = (data as any)?.data ?? [];
-      const batchErrors: { index: number; message: string }[] = (data as any)?.errors ?? [];
-      const failedIndices = new Map(batchErrors.map((e) => [e.index, e.message]));
-
-      let successDataIdx = 0;
       for (let j = 0; j < batch.length; j++) {
         const member = batch[j];
-        const errorMsg = failedIndices.get(j);
+        const { resendId, errorMessage } = results[j];
 
-        if (errorMsg !== undefined) {
-          // このメールアドレスが個別に拒否された（不正フォーマット等）
-          console.warn(`[executeListMemberSend] Resend rejected email for ${member.email}: ${errorMsg}`);
+        if (errorMessage !== null) {
+          // このメールアドレスが個別 or バッチ全体で拒否された（不正フォーマット等）
+          console.warn(`[executeListMemberSend] Resend rejected email for ${member.email}: ${errorMessage}`);
           result.failed++;
-          result.logs.push({ recipient_email: member.email, recipient_name: member.name, status: "failed", error_message: errorMsg });
+          result.logs.push({ recipient_email: member.email, recipient_name: member.name, status: "failed", error_message: errorMessage });
           await db.prepare(
             `INSERT INTO email_send_logs (schedule_id, seminar_id, recipient_email, recipient_name, status, error_message, sent_at)
              VALUES (?, ?, ?, ?, 'failed', ?, ?)`
-          ).bind(scheduleId, seminarId, member.email, member.name, errorMsg, now).run();
+          ).bind(scheduleId, seminarId, member.email, member.name, errorMessage, now).run();
+        } else if (resendId) {
+          result.success++;
+          result.logs.push({ recipient_email: member.email, recipient_name: member.name, status: "sent", resend_id: resendId });
+          await db.prepare(
+            `INSERT INTO email_send_logs (schedule_id, seminar_id, recipient_email, recipient_name, status, resend_id, sent_at)
+             VALUES (?, ?, ?, ?, 'sent', ?, ?)`
+          ).bind(scheduleId, seminarId, member.email, member.name, resendId, now).run();
         } else {
-          // 成功分。data.data は成功メールのみを順に格納しているので専用カウンタで参照
-          const resendId = sent[successDataIdx]?.id ?? null;
-          successDataIdx++;
-
-          if (resendId) {
-            result.success++;
-            result.logs.push({ recipient_email: member.email, recipient_name: member.name, status: "sent", resend_id: resendId });
-            await db.prepare(
-              `INSERT INTO email_send_logs (schedule_id, seminar_id, recipient_email, recipient_name, status, resend_id, sent_at)
-               VALUES (?, ?, ?, ?, 'sent', ?, ?)`
-            ).bind(scheduleId, seminarId, member.email, member.name, resendId, now).run();
-          } else {
-            // resend_id が null → 再送キューへ
-            console.warn(`[executeListMemberSend] resend_id not returned for ${member.email}, queuing for retry`);
-            retryQueue.push(member);
-          }
+          // 成功枠だが resend_id が返らなかった曖昧ケース → 再送キューへ
+          console.warn(`[executeListMemberSend] resend_id not returned for ${member.email}, queuing for retry`);
+          retryQueue.push(member);
         }
       }
     } catch (err) {

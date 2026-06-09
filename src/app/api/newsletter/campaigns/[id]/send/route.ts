@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { getD1 } from "@/lib/d1";
 import { verifyAdminRequest } from "@/lib/auth";
-import { buildHtmlEmail, detectBrand, BRAND_CONFIGS } from "@/lib/email/bulk";
+import { buildHtmlEmail, detectBrand, BRAND_CONFIGS, sendBatchWithResults } from "@/lib/email/bulk";
 
 const BATCH_SIZE = 100; // Resend batch.send の上限
 
@@ -158,37 +158,23 @@ export async function POST(
     let failedCount = 0;
 
     if (messages.length > 0) {
-      const { data: batchData, error } = await resend.batch.send(messages);
-      // batch.send は { data: [{id: "..."}] } を返すため .data で配列を取り出す
-      const data = ((batchData as any)?.data ?? []) as Array<{ id?: string }>;
-
-      if (error) {
-        // バッチ全体が失敗
-        failedCount = subscribers.length;
-        for (const subscriber of subscribers) {
+      // batch.send のレスポンスパースは共通ヘルパーに集約（経路ごとの取り違え事故を防止）
+      const results = await sendBatchWithResults(resend, messages);
+      for (let i = 0; i < subscribers.length; i++) {
+        const subscriber = subscribers[i];
+        const { resendId, errorMessage } = results[i];
+        if (resendId) {
+          sentCount++;
+          await db.prepare(
+            `INSERT INTO newsletter_send_logs (campaign_id, subscriber_id, email, name, status, resend_id, sent_at)
+             VALUES (?, ?, ?, ?, 'sent', ?, ?)`
+          ).bind(id, subscriber.id, subscriber.email, subscriber.name, resendId, now).run();
+        } else {
+          failedCount++;
           await db.prepare(
             `INSERT INTO newsletter_send_logs (campaign_id, subscriber_id, email, name, status, error_message, sent_at)
              VALUES (?, ?, ?, ?, 'failed', ?, ?)`
-          ).bind(id, subscriber.id, subscriber.email, subscriber.name, error.message, now).run();
-        }
-      } else {
-        // 個別の送信結果を記録
-        for (let i = 0; i < subscribers.length; i++) {
-          const subscriber = subscribers[i];
-          const resendId = data?.[i]?.id ?? null;
-          if (resendId) {
-            sentCount++;
-            await db.prepare(
-              `INSERT INTO newsletter_send_logs (campaign_id, subscriber_id, email, name, status, resend_id, sent_at)
-               VALUES (?, ?, ?, ?, 'sent', ?, ?)`
-            ).bind(id, subscriber.id, subscriber.email, subscriber.name, resendId, now).run();
-          } else {
-            failedCount++;
-            await db.prepare(
-              `INSERT INTO newsletter_send_logs (campaign_id, subscriber_id, email, name, status, error_message, sent_at)
-               VALUES (?, ?, ?, ?, 'failed', ?, ?)`
-            ).bind(id, subscriber.id, subscriber.email, subscriber.name, "No resend_id returned", now).run();
-          }
+          ).bind(id, subscriber.id, subscriber.email, subscriber.name, errorMessage ?? "No resend_id returned", now).run();
         }
       }
     }
